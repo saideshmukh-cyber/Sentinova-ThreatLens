@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.database import SessionLocal
 from backend.app.models.indicator import Indicator
-from backend.app.schemas.indicator import IndicatorCreate, IndicatorResponse
+from backend.app.schemas.indicator import (
+    IndicatorCreate,
+    IndicatorResponse,
+    IndicatorUpdate,
+)
 
 
 router = APIRouter(
@@ -53,6 +57,7 @@ def list_indicators(
 ):
     return db.query(Indicator).all()
 
+
 @router.get("/{indicator_id}", response_model=IndicatorResponse)
 def get_indicator(
     indicator_id: int,
@@ -69,6 +74,7 @@ def get_indicator(
         )
 
     return indicator
+
 
 @router.delete("/{indicator_id}")
 def delete_indicator(
@@ -91,3 +97,36 @@ def delete_indicator(
     return {
         "detail": "Indicator deleted successfully"
     }
+
+
+@router.put("/{indicator_id}", response_model=IndicatorResponse)
+def update_indicator(
+    indicator_id: int,
+    indicator_data: IndicatorUpdate,
+    db: Session = Depends(get_db),
+):
+    indicator = db.query(Indicator).filter(
+        Indicator.id == indicator_id
+    ).first()
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    indicator.indicator_type = indicator_data.indicator_type
+    indicator.value = indicator_data.value
+
+    try:
+        db.commit()
+        db.refresh(indicator)
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Indicator already exists",
+        )
+
+    return indicator

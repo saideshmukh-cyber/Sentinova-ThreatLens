@@ -10,6 +10,11 @@ class IndicatorCreate(BaseModel):
     value: str
 
 
+class IndicatorUpdate(BaseModel):
+    indicator_type: IndicatorType
+    value: str
+
+
 class IndicatorResponse(BaseModel):
     id: int
     indicator_type: IndicatorType
