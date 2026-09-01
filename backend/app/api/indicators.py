@@ -69,3 +69,25 @@ def get_indicator(
         )
 
     return indicator
+
+@router.delete("/{indicator_id}")
+def delete_indicator(
+    indicator_id: int,
+    db: Session = Depends(get_db),
+):
+    indicator = db.query(Indicator).filter(
+        Indicator.id == indicator_id
+    ).first()
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    db.delete(indicator)
+    db.commit()
+
+    return {
+        "detail": "Indicator deleted successfully"
+    }
