@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from backend.app.db.database import engine
+from backend.app.api.indicators import router as indicators_router
 
 
 app = FastAPI(
@@ -10,10 +11,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-from backend.app.db.database import Base, engine
-
-
-Base.metadata.create_all(bind=engine)
+app.include_router(indicators_router)
 
 
 @app.get("/")
