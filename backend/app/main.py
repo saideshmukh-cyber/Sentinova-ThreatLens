@@ -3,7 +3,7 @@ from sqlalchemy import text
 
 from backend.app.db.database import engine
 from backend.app.api.indicators import router as indicators_router
-
+from backend.app.api.enrichments import router as enrichments_router
 
 app = FastAPI(
     title="ThreatLens API",
@@ -12,7 +12,7 @@ app = FastAPI(
 )
 
 app.include_router(indicators_router)
-
+app.include_router(enrichments_router)
 
 @app.get("/")
 def root():

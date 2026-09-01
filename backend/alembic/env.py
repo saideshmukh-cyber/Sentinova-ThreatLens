@@ -21,6 +21,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from backend.app.db.database import Base
 from backend.app.models import indicator
+from backend.app.models.enrichment import IndicatorEnrichment
 
 target_metadata = Base.metadata
 
