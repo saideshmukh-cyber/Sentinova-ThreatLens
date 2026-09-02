@@ -5,6 +5,8 @@ from backend.app.providers.dns_provider import lookup_domain
 from backend.app.providers.ip_provider import analyze_ip
 from backend.app.db.redis import redis_client
 from backend.app.providers.hash_provider import analyze_hash
+from backend.app.config import settings
+from backend.app.providers.virustotal_provider import VirusTotalProvider
 
 def create_enrichment(
     db: Session,
@@ -91,4 +93,26 @@ def enrich_hash(
         indicator_id=indicator_id,
         source="hash_analysis",
         data=hash_data,
+    )
+
+def enrich_virustotal(
+    db: Session,
+    indicator_id: int,
+    indicator_type: str,
+    value: str,
+):
+    provider = VirusTotalProvider(
+        settings.virustotal_api_key
+    )
+
+    result = provider.enrich(
+        value=value,
+        indicator_type=indicator_type,
+    )
+
+    return create_enrichment(
+        db=db,
+        indicator_id=indicator_id,
+        source="virustotal",
+        data=result,
     )

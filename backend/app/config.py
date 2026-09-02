@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
+    virustotal_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

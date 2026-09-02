@@ -6,7 +6,7 @@ from backend.app.db.redis import redis_client
 from backend.app.models.indicator import Indicator
 from backend.app.schemas.indicator import IndicatorCreate, IndicatorUpdate
 from backend.app.services.indicator_normalizer import normalize_indicator
-
+from backend.app.models.enrichment import IndicatorEnrichment
 
 def create_indicator(
     db: Session,
@@ -78,14 +78,22 @@ def delete_indicator(
     db: Session,
     indicator_id: int,
 ):
-    indicator = get_indicator_by_id(db, indicator_id)
+    indicator = get_indicator(db, indicator_id)
+
+    if indicator is None:
+        return None
+
+    db.query(IndicatorEnrichment).filter(
+        IndicatorEnrichment.indicator_id == indicator_id
+    ).delete(
+        synchronize_session=False
+    )
 
     db.delete(indicator)
+
     db.commit()
 
-    return {
-        "detail": "Indicator deleted successfully"
-    }
+    return indicator
 
 
 def update_indicator(

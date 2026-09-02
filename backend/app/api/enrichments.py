@@ -6,6 +6,11 @@ from backend.app.schemas.enrichment import EnrichmentResponse
 from backend.app.services import enrichment_service
 from backend.app.models.indicator import Indicator
 from backend.app.services import indicator_service
+from fastapi import HTTPException
+
+from backend.app.config import settings
+from backend.app.services import indicator_service
+from backend.app.services import enrichment_service
 
 router = APIRouter(
     prefix="/api/v1/enrichments",
@@ -136,5 +141,39 @@ def enrich_indicator_hash(
     return enrichment_service.enrich_hash(
         db=db,
         indicator_id=indicator.id,
+        value=indicator.value,
+    )
+
+@router.post(
+    "/indicator/{indicator_id}/virustotal",
+    response_model=EnrichmentResponse,
+)
+def enrich_indicator_virustotal(
+    indicator_id: int,
+    db: Session = Depends(get_db),
+):
+    indicator = indicator_service.get_indicator(
+        db,
+        indicator_id,
+    )
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    if not settings.virustotal_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="VirusTotal API key is not configured",
+        )
+
+    indicator_type = indicator.indicator_type.value
+
+    return enrichment_service.enrich_virustotal(
+        db=db,
+        indicator_id=indicator.id,
+        indicator_type=indicator_type,
         value=indicator.value,
     )
