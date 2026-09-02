@@ -7,6 +7,9 @@ from backend.app.db.redis import redis_client
 from backend.app.providers.hash_provider import analyze_hash
 from backend.app.config import settings
 from backend.app.providers.virustotal_provider import VirusTotalProvider
+from backend.app.services.scoring_service import (
+    score_virustotal_result,
+)
 
 def create_enrichment(
     db: Session,
@@ -117,13 +120,18 @@ def enrich_virustotal(
             value=normalized_value,
             indicator_type=normalized_type,
         )
-
+        
         if result.get("status") == "ok":
             redis_client.set(
                 cache_key,
                 json.dumps(result),
                 ex=600,
             )
+            
+        if result.get("status") == "ok":
+                score_data = score_virustotal_result(result)
+        
+                result.update(score_data)    
 
     return create_enrichment(
         db=db,
