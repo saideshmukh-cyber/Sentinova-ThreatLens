@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-
+import json
 from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.providers.dns_provider import lookup_domain
 from backend.app.providers.ip_provider import analyze_ip
@@ -45,14 +45,11 @@ def enrich_domain(
     cached_data = redis_client.get(cache_key)
 
     if cached_data:
-        import json
-
+    
         dns_data = json.loads(cached_data)
 
     else:
         dns_data = lookup_domain(domain)
-
-        import json
 
         redis_client.set(
             cache_key,
@@ -101,14 +98,32 @@ def enrich_virustotal(
     indicator_type: str,
     value: str,
 ):
-    provider = VirusTotalProvider(
-        settings.virustotal_api_key
-    )
+    normalized_type = indicator_type.strip().upper()
+    normalized_value = value.strip().lower()
 
-    result = provider.enrich(
-        value=value,
-        indicator_type=indicator_type,
-    )
+    cache_key = f"vt:{normalized_type}:{normalized_value}"
+
+    cached_data = redis_client.get(cache_key)
+
+    if cached_data:
+        result = json.loads(cached_data)
+
+    else:
+        provider = VirusTotalProvider(
+            settings.virustotal_api_key
+        )
+
+        result = provider.enrich(
+            value=normalized_value,
+            indicator_type=normalized_type,
+        )
+
+        if result.get("status") == "ok":
+            redis_client.set(
+                cache_key,
+                json.dumps(result),
+                ex=600,
+            )
 
     return create_enrichment(
         db=db,

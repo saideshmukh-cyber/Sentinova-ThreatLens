@@ -1,6 +1,3 @@
-import hashlib
-
-
 def analyze_hash(value: str) -> dict:
     value = value.strip().lower()
 
