@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.models.indicator import Indicator
 from backend.app.models.enrichment import IndicatorEnrichment
+from backend.app.services import enrichment_service
+
 
 def create_indicator(
     db: Session,
@@ -18,6 +20,7 @@ def create_indicator(
     db.refresh(indicator)
 
     return indicator
+
 
 def get_or_create_indicator(
     db: Session,
@@ -42,6 +45,7 @@ def get_or_create_indicator(
         value=value,
     )
 
+
 def get_enrichments(
     db: Session,
     indicator_id: int,
@@ -49,7 +53,76 @@ def get_enrichments(
     return (
         db.query(IndicatorEnrichment)
         .filter(
-        IndicatorEnrichment.indicator_id == indicator_id
+            IndicatorEnrichment.indicator_id == indicator_id
         )
         .all()
     )
+
+
+def run_enrichment(
+    db: Session,
+    indicator,
+):
+    indicator_type = indicator.indicator_type.value
+    value = indicator.value
+
+    results = []
+
+    if indicator_type == "IP":
+        results.append(
+            enrichment_service.enrich_ip(
+                db=db,
+                indicator_id=indicator.id,
+                ip=value,
+            )
+        )
+
+        results.append(
+            enrichment_service.enrich_virustotal(
+                db=db,
+                indicator_id=indicator.id,
+                indicator_type=indicator_type,
+                value=value,
+            )
+        )
+
+    elif indicator_type == "DOMAIN":
+        results.append(
+            enrichment_service.enrich_domain(
+                db=db,
+                indicator_id=indicator.id,
+                domain=value,
+            )
+        )
+
+        results.append(
+            enrichment_service.enrich_virustotal(
+                db=db,
+                indicator_id=indicator.id,
+                indicator_type=indicator_type,
+                value=value,
+            )
+        )
+
+    elif indicator_type == "HASH":
+        results.append(
+            enrichment_service.enrich_hash(
+                db=db,
+                indicator_id=indicator.id,
+                value=value,
+            )
+        )
+
+        results.append(
+            enrichment_service.enrich_virustotal(
+                db=db,
+                indicator_id=indicator.id,
+                indicator_type=indicator_type,
+                value=value,
+            )
+        )
+
+    elif indicator_type == "URL":
+        return []
+
+    return results
