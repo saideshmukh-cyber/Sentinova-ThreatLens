@@ -1,24 +1,39 @@
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from backend.app.db.redis import redis_client
 
+from backend.app.db.redis import redis_client
 from backend.app.models.indicator import Indicator
+from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.schemas.indicator import IndicatorCreate, IndicatorUpdate
 from backend.app.services.indicator_normalizer import normalize_indicator
-from backend.app.models.enrichment import IndicatorEnrichment
+
+
+def normalize_indicator_type(indicator_type):
+    if isinstance(indicator_type, str):
+        return indicator_type.strip().lower()
+
+    if hasattr(indicator_type, "value"):
+        return indicator_type.value.strip().lower()
+
+    return indicator_type
+
 
 def create_indicator(
     db: Session,
     indicator_data: IndicatorCreate,
 ):
+    normalized_type = normalize_indicator_type(
+        indicator_data.indicator_type
+    )
+
     normalized_value = normalize_indicator(
-        indicator_data.indicator_type,
+        normalized_type,
         indicator_data.value,
     )
 
     db_indicator = Indicator(
-        indicator_type=indicator_data.indicator_type,
+        indicator_type=normalized_type,
         value=normalized_value,
     )
 
@@ -30,6 +45,7 @@ def create_indicator(
 
     except IntegrityError:
         db.rollback()
+
         raise HTTPException(
             status_code=409,
             detail="Indicator already exists",
@@ -90,7 +106,6 @@ def delete_indicator(
     )
 
     db.delete(indicator)
-
     db.commit()
 
     return indicator
@@ -101,14 +116,21 @@ def update_indicator(
     indicator_id: int,
     indicator_data: IndicatorUpdate,
 ):
-    indicator = get_indicator_by_id(db, indicator_id)
+    indicator = get_indicator_by_id(
+        db,
+        indicator_id,
+    )
+
+    normalized_type = normalize_indicator_type(
+        indicator_data.indicator_type
+    )
 
     normalized_value = normalize_indicator(
-        indicator_data.indicator_type,
+        normalized_type,
         indicator_data.value,
     )
 
-    indicator.indicator_type = indicator_data.indicator_type
+    indicator.indicator_type = normalized_type
     indicator.value = normalized_value
 
     try:
@@ -117,12 +139,14 @@ def update_indicator(
 
     except IntegrityError:
         db.rollback()
+
         raise HTTPException(
             status_code=409,
             detail="Indicator already exists",
         )
 
     return indicator
+
 
 def get_indicator(
     db: Session,

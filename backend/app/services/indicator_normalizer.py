@@ -8,13 +8,19 @@ def normalize_indicator(indicator_type, value: str) -> str:
 
     value = value.strip()
 
-    if indicator_type.value == "DOMAIN":
+    if hasattr(indicator_type, "value"):
+        indicator_type = indicator_type.value
+
+    indicator_type = indicator_type.strip().lower()
+
+    if indicator_type == "domain":
         return value.lower().rstrip(".")
 
-    if indicator_type.value == "URL":
+    if indicator_type == "url":
         parsed = urlparse(value)
 
         scheme = parsed.scheme.lower()
+
         hostname = parsed.hostname.lower() if parsed.hostname else ""
 
         if parsed.port:
@@ -29,10 +35,10 @@ def normalize_indicator(indicator_type, value: str) -> str:
 
         return normalized_url
 
-    if indicator_type.value == "IP":
+    if indicator_type == "ip":
         return value.strip()
 
-    if indicator_type.value == "HASH":
+    if indicator_type == "hash":
         return value.lower()
 
     return value
