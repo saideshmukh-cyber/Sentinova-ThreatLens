@@ -1,36 +1,62 @@
-import socket
+import requests
+
+
+CLOUDFLARE_DNS_URL = "https://cloudflare-dns.com/dns-query"
 
 
 def lookup_domain(domain: str) -> dict:
     result = {
         "domain": domain,
         "a_records": [],
-        "status": "unknown",
+        "aaaa_records": [],
+    }
+
+    headers = {
+        "accept": "application/dns-json",
     }
 
     try:
-        addresses = socket.getaddrinfo(
-            domain,
-            None,
-            socket.AF_INET,
+        response = requests.get(
+            CLOUDFLARE_DNS_URL,
+            params={
+                "name": domain,
+                "type": "A",
+            },
+            headers=headers,
+            timeout=5,
         )
 
-        for address in addresses:
-            ip_address = address[4][0]
+        response.raise_for_status()
 
-            if ip_address not in result["a_records"]:
-                result["a_records"].append(ip_address)
+        data = response.json()
 
-        if result["a_records"]:
-            result["status"] = "success"
-        else:
-            result["status"] = "no_records"
-
-    except socket.gaierror:
-        result["status"] = "dns_unavailable"
+        for answer in data.get("Answer", []):
+            if answer.get("type") == 1:
+                result["a_records"].append(answer["data"])
 
     except Exception as exc:
-        result["status"] = "error"
         result["error"] = str(exc)
+
+    try:
+        response = requests.get(
+            CLOUDFLARE_DNS_URL,
+            params={
+                "name": domain,
+                "type": "AAAA",
+            },
+            headers=headers,
+            timeout=5,
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        for answer in data.get("Answer", []):
+            if answer.get("type") == 28:
+                result["aaaa_records"].append(answer["data"])
+
+    except Exception as exc:
+        result["aaaa_error"] = str(exc)
 
     return result

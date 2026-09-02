@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.providers.dns_provider import lookup_domain
+from backend.app.providers.ip_provider import analyze_ip
+from backend.app.db.redis import redis_client
 
 def create_enrichment(
     db: Session,
@@ -35,11 +37,43 @@ def enrich_domain(
     indicator_id: int,
     domain: str,
 ):
-    dns_data = lookup_domain(domain)
+    cache_key = f"dns:{domain}"
+
+    cached_data = redis_client.get(cache_key)
+
+    if cached_data:
+        import json
+
+        dns_data = json.loads(cached_data)
+
+    else:
+        dns_data = lookup_domain(domain)
+
+        import json
+
+        redis_client.set(
+            cache_key,
+            json.dumps(dns_data),
+            ex=300,
+        )
 
     return create_enrichment(
         db=db,
         indicator_id=indicator_id,
         source="dns",
         data=dns_data,
+    )
+
+def enrich_ip(
+    db: Session,
+    indicator_id: int,
+    ip: str,
+):
+    ip_data = analyze_ip(ip)
+
+    return create_enrichment(
+        db=db,
+        indicator_id=indicator_id,
+        source="ip_analysis",
+        data=ip_data,
     )

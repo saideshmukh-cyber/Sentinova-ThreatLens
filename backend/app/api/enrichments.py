@@ -66,3 +66,37 @@ def enrich_indicator_dns(
         indicator_id=indicator.id,
         domain=indicator.value,
     )
+
+@router.post(
+    "/indicator/{indicator_id}/ip",
+    response_model=EnrichmentResponse,
+)
+def enrich_indicator_ip(
+    indicator_id: int,
+    db: Session = Depends(get_db),
+):
+    indicator = db.query(Indicator).filter(
+        Indicator.id == indicator_id
+    ).first()
+
+    if indicator is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    if indicator.indicator_type.value != "ip":
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=400,
+            detail="IP enrichment requires an IP indicator",
+        )
+
+    return enrichment_service.enrich_ip(
+        db=db,
+        indicator_id=indicator.id,
+        ip=indicator.value,
+    )
