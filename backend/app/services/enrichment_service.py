@@ -4,6 +4,7 @@ from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.providers.dns_provider import lookup_domain
 from backend.app.providers.ip_provider import analyze_ip
 from backend.app.db.redis import redis_client
+from backend.app.providers.hash_provider import analyze_hash
 
 def create_enrichment(
     db: Session,
@@ -76,4 +77,18 @@ def enrich_ip(
         indicator_id=indicator_id,
         source="ip_analysis",
         data=ip_data,
+    )
+
+def enrich_hash(
+    db: Session,
+    indicator_id: int,
+    value: str,
+):
+    hash_data = analyze_hash(value)
+
+    return create_enrichment(
+        db=db,
+        indicator_id=indicator_id,
+        source="hash_analysis",
+        data=hash_data,
     )

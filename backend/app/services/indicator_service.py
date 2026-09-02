@@ -115,3 +115,11 @@ def update_indicator(
         )
 
     return indicator
+
+def get_indicator(
+    db: Session,
+    indicator_id: int,
+):
+    return db.query(Indicator).filter(
+        Indicator.id == indicator_id
+    ).first()
