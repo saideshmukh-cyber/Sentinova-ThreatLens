@@ -1,19 +1,9 @@
 from sqlalchemy.orm import Session
 
-from backend.app.models.indicator import Indicator
 from backend.app.models.enrichment import IndicatorEnrichment
+from backend.app.models.indicator import Indicator
 from backend.app.services import enrichment_service
 from backend.app.services.indicator_normalizer import normalize_indicator
-
-
-def normalize_indicator_type(indicator_type):
-    if hasattr(indicator_type, "value"):
-        indicator_type = indicator_type.value
-
-    if isinstance(indicator_type, str):
-        return indicator_type.strip().lower()
-
-    return indicator_type
 
 
 def create_indicator(
@@ -21,8 +11,10 @@ def create_indicator(
     indicator_type,
     value: str,
 ):
-    normalized_type = normalize_indicator_type(
-        indicator_type
+    normalized_type = (
+        indicator_type.value
+        if hasattr(indicator_type, "value")
+        else str(indicator_type).strip().lower()
     )
 
     normalized_value = normalize_indicator(
@@ -47,8 +39,10 @@ def get_or_create_indicator(
     indicator_type,
     value: str,
 ):
-    normalized_type = normalize_indicator_type(
-        indicator_type
+    normalized_type = (
+        indicator_type.value
+        if hasattr(indicator_type, "value")
+        else str(indicator_type).strip().lower()
     )
 
     normalized_value = normalize_indicator(
@@ -125,9 +119,7 @@ def run_local_enrichment(
     db: Session,
     indicator,
 ):
-    indicator_type = normalize_indicator_type(
-        indicator.indicator_type
-    )
+    indicator_type = indicator.indicator_type.value
 
     if indicator_type == "domain":
         return run_domain_enrichment(
@@ -154,17 +146,10 @@ def run_virustotal_enrichment(
     db: Session,
     indicator,
 ):
-    indicator_type = normalize_indicator_type(
-        indicator.indicator_type
-    )
-
-    if indicator_type not in {"ip", "domain", "hash"}:
-        return None
-
     return enrichment_service.enrich_virustotal(
         db=db,
         indicator_id=indicator.id,
-        indicator_type=indicator_type,
+        indicator_type=indicator.indicator_type.value,
         value=indicator.value,
     )
 
@@ -172,6 +157,7 @@ def run_virustotal_enrichment(
 def investigate_indicator(
     db: Session,
     indicator,
+    include_virustotal: bool = True,
 ):
     enrichments = []
 
@@ -183,12 +169,13 @@ def investigate_indicator(
     if local_enrichment is not None:
         enrichments.append(local_enrichment)
 
-    virustotal_enrichment = run_virustotal_enrichment(
-        db=db,
-        indicator=indicator,
-    )
+    if include_virustotal:
+        virustotal_enrichment = run_virustotal_enrichment(
+            db=db,
+            indicator=indicator,
+        )
 
-    if virustotal_enrichment is not None:
-        enrichments.append(virustotal_enrichment)
+        if virustotal_enrichment is not None:
+            enrichments.append(virustotal_enrichment)
 
     return enrichments

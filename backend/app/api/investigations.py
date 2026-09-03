@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
@@ -21,6 +21,7 @@ def get_db():
 
     try:
         yield db
+
     finally:
         db.close()
 
@@ -33,21 +34,25 @@ def investigate(
     request: InvestigationCreate,
     db: Session = Depends(get_db),
 ):
-    if not settings.virustotal_api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="VirusTotal API key is not configured",
-        )
-
     indicator = investigation_service.get_or_create_indicator(
         db=db,
         indicator_type=request.indicator_type,
         value=request.value,
     )
 
-    enrichments = investigation_service.investigate_indicator(
+    include_virustotal = bool(
+        settings.virustotal_api_key
+    )
+
+    investigation_service.investigate_indicator(
         db=db,
         indicator=indicator,
+        include_virustotal=include_virustotal,
+    )
+
+    enrichments = investigation_service.get_enrichments(
+        db=db,
+        indicator_id=indicator.id,
     )
 
     return {

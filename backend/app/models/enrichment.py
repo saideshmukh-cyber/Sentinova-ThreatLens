@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String
+from sqlalchemy import DateTime, ForeignKey, JSON, Text
+
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.db.database import Base
@@ -10,9 +11,7 @@ class IndicatorEnrichment(Base):
     __tablename__ = "indicator_enrichments"
 
     id: Mapped[int] = mapped_column(
-        Integer,
         primary_key=True,
-        index=True,
     )
 
     indicator_id: Mapped[int] = mapped_column(
@@ -21,7 +20,7 @@ class IndicatorEnrichment(Base):
     )
 
     source: Mapped[str] = mapped_column(
-        String(100),
+        Text,
         nullable=False,
     )
 

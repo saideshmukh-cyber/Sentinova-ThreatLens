@@ -1,15 +1,18 @@
-from sqlalchemy.orm import Session
 import json
+
+from sqlalchemy.orm import Session
+
+from backend.app.config import settings
+from backend.app.db.redis import redis_client
 from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.providers.dns_provider import lookup_domain
-from backend.app.providers.ip_provider import analyze_ip
-from backend.app.db.redis import redis_client
 from backend.app.providers.hash_provider import analyze_hash
-from backend.app.config import settings
+from backend.app.providers.ip_provider import analyze_ip
 from backend.app.providers.virustotal_provider import VirusTotalProvider
 from backend.app.services.scoring_service import (
     score_virustotal_result,
 )
+
 
 def create_enrichment(
     db: Session,
@@ -34,25 +37,37 @@ def get_enrichments_for_indicator(
     db: Session,
     indicator_id: int,
 ):
-    return db.query(IndicatorEnrichment).filter(
-        IndicatorEnrichment.indicator_id == indicator_id
-    ).all()
+    return (
+        db.query(IndicatorEnrichment)
+        .filter(
+            IndicatorEnrichment.indicator_id == indicator_id
+        )
+        .all()
+    )
+
 
 def enrich_domain(
     db: Session,
     indicator_id: int,
     domain: str,
 ):
-    cache_key = f"dns:{domain}"
+    normalized_domain = domain.strip().lower()
 
-    cached_data = redis_client.get(cache_key)
+    cache_key = f"dns:{normalized_domain}"
+
+    cached_data = redis_client.get(
+        cache_key
+    )
 
     if cached_data:
-    
-        dns_data = json.loads(cached_data)
+        dns_data = json.loads(
+            cached_data
+        )
 
     else:
-        dns_data = lookup_domain(domain)
+        dns_data = lookup_domain(
+            normalized_domain
+        )
 
         redis_client.set(
             cache_key,
@@ -67,12 +82,17 @@ def enrich_domain(
         data=dns_data,
     )
 
+
 def enrich_ip(
     db: Session,
     indicator_id: int,
     ip: str,
 ):
-    ip_data = analyze_ip(ip)
+    normalized_ip = ip.strip()
+
+    ip_data = analyze_ip(
+        normalized_ip
+    )
 
     return create_enrichment(
         db=db,
@@ -81,12 +101,17 @@ def enrich_ip(
         data=ip_data,
     )
 
+
 def enrich_hash(
     db: Session,
     indicator_id: int,
     value: str,
 ):
-    hash_data = analyze_hash(value)
+    normalized_hash = value.strip().lower()
+
+    hash_data = analyze_hash(
+        normalized_hash
+    )
 
     return create_enrichment(
         db=db,
@@ -95,21 +120,33 @@ def enrich_hash(
         data=hash_data,
     )
 
+
 def enrich_virustotal(
     db: Session,
     indicator_id: int,
     indicator_type: str,
     value: str,
 ):
-    normalized_type = indicator_type.strip().upper()
-    normalized_value = value.strip().lower()
+    normalized_type = (
+        indicator_type.strip().upper()
+    )
 
-    cache_key = f"vt:{normalized_type}:{normalized_value}"
+    normalized_value = (
+        value.strip().lower()
+    )
 
-    cached_data = redis_client.get(cache_key)
+    cache_key = (
+        f"vt:{normalized_type}:{normalized_value}"
+    )
+
+    cached_data = redis_client.get(
+        cache_key
+    )
 
     if cached_data:
-        result = json.loads(cached_data)
+        result = json.loads(
+            cached_data
+        )
 
     else:
         provider = VirusTotalProvider(
@@ -120,18 +157,30 @@ def enrich_virustotal(
             value=normalized_value,
             indicator_type=normalized_type,
         )
-        
+
         if result.get("status") == "ok":
+            score_data = score_virustotal_result(
+                result
+            )
+
+            result.update(
+                score_data
+            )
+
             redis_client.set(
                 cache_key,
                 json.dumps(result),
                 ex=600,
             )
-            
-        if result.get("status") == "ok":
-                score_data = score_virustotal_result(result)
-        
-                result.update(score_data)    
+
+    if result.get("status") == "ok":
+        score_data = score_virustotal_result(
+            result
+        )
+
+        result.update(
+            score_data
+        )
 
     return create_enrichment(
         db=db,

@@ -1,16 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.app.config import settings
 from backend.app.db.database import SessionLocal
 from backend.app.schemas.enrichment import EnrichmentResponse
 from backend.app.services import enrichment_service
-from backend.app.models.indicator import Indicator
 from backend.app.services import indicator_service
-from fastapi import HTTPException
 
-from backend.app.config import settings
-from backend.app.services import indicator_service
-from backend.app.services import enrichment_service
 
 router = APIRouter(
     prefix="/api/v1/enrichments",
@@ -20,8 +16,10 @@ router = APIRouter(
 
 def get_db():
     db = SessionLocal()
+
     try:
         yield db
+
     finally:
         db.close()
 
@@ -34,10 +32,22 @@ def list_indicator_enrichments(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
+    indicator = indicator_service.get_indicator(
+        db,
+        indicator_id,
+    )
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
     return enrichment_service.get_enrichments_for_indicator(
         db,
         indicator_id,
     )
+
 
 @router.post(
     "/indicator/{indicator_id}/dns",
@@ -48,21 +58,17 @@ def enrich_indicator_dns(
     db: Session = Depends(get_db),
 ):
     indicator = indicator_service.get_indicator(
-    db,
-    indicator_id,
-)
+        db,
+        indicator_id,
+    )
 
     if indicator is None:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=404,
             detail="Indicator not found",
         )
 
     if indicator.indicator_type.value != "domain":
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=400,
             detail="DNS enrichment requires a domain indicator",
@@ -74,6 +80,7 @@ def enrich_indicator_dns(
         domain=indicator.value,
     )
 
+
 @router.post(
     "/indicator/{indicator_id}/ip",
     response_model=EnrichmentResponse,
@@ -83,21 +90,17 @@ def enrich_indicator_ip(
     db: Session = Depends(get_db),
 ):
     indicator = indicator_service.get_indicator(
-    db,
-    indicator_id,
-)
+        db,
+        indicator_id,
+    )
 
     if indicator is None:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=404,
             detail="Indicator not found",
         )
 
     if indicator.indicator_type.value != "ip":
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=400,
             detail="IP enrichment requires an IP indicator",
@@ -109,6 +112,7 @@ def enrich_indicator_ip(
         ip=indicator.value,
     )
 
+
 @router.post(
     "/indicator/{indicator_id}/hash",
     response_model=EnrichmentResponse,
@@ -118,21 +122,17 @@ def enrich_indicator_hash(
     db: Session = Depends(get_db),
 ):
     indicator = indicator_service.get_indicator(
-    db,
-    indicator_id,
-)
+        db,
+        indicator_id,
+    )
 
     if indicator is None:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=404,
             detail="Indicator not found",
         )
 
     if indicator.indicator_type.value != "hash":
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=400,
             detail="Hash enrichment requires a hash indicator",
@@ -143,6 +143,7 @@ def enrich_indicator_hash(
         indicator_id=indicator.id,
         value=indicator.value,
     )
+
 
 @router.post(
     "/indicator/{indicator_id}/virustotal",
@@ -169,11 +170,9 @@ def enrich_indicator_virustotal(
             detail="VirusTotal API key is not configured",
         )
 
-    indicator_type = indicator.indicator_type.value
-
     return enrichment_service.enrich_virustotal(
         db=db,
         indicator_id=indicator.id,
-        indicator_type=indicator_type,
+        indicator_type=indicator.indicator_type.value,
         value=indicator.value,
     )

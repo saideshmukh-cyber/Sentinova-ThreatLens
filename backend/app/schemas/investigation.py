@@ -1,14 +1,17 @@
 from pydantic import BaseModel, field_validator
 
-from backend.app.schemas.indicator import IndicatorType
 from backend.app.schemas.enrichment import EnrichmentResponse
+from backend.app.schemas.indicator import IndicatorType
 
 
 class InvestigationCreate(BaseModel):
     indicator_type: IndicatorType
     value: str
 
-    @field_validator("indicator_type", mode="before")
+    @field_validator(
+        "indicator_type",
+        mode="before",
+    )
     @classmethod
     def normalize_indicator_type(cls, value):
         if isinstance(value, str):
@@ -16,7 +19,10 @@ class InvestigationCreate(BaseModel):
 
         return value
 
-    @field_validator("value", mode="before")
+    @field_validator(
+        "value",
+        mode="before",
+    )
     @classmethod
     def normalize_indicator_value(cls, value):
         if isinstance(value, str):
