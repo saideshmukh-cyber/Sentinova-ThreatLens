@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.app.config import settings
 
@@ -16,19 +16,17 @@ DATABASE_URL = (
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
 )
-
 
 SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
     autocommit=False,
+    autoflush=False,
+    bind=engine,
 )
 
-
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 
+from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.models.indicator import Indicator
+from backend.app.models.investigation import Investigation

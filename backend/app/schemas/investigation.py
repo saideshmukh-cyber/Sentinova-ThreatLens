@@ -32,6 +32,7 @@ class InvestigationCreate(BaseModel):
 
 
 class InvestigationResponse(BaseModel):
+    investigation_id: int
     indicator_id: int
     indicator_type: str
     value: str

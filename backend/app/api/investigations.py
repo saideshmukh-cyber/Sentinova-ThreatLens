@@ -44,18 +44,16 @@ def investigate(
         settings.virustotal_api_key
     )
 
-    investigation_service.investigate_indicator(
-        db=db,
-        indicator=indicator,
-        include_virustotal=include_virustotal,
-    )
-
-    enrichments = investigation_service.get_enrichments(
-        db=db,
-        indicator_id=indicator.id,
+    investigation, enrichments = (
+        investigation_service.investigate_indicator(
+            db=db,
+            indicator=indicator,
+            include_virustotal=include_virustotal,
+        )
     )
 
     return {
+        "investigation_id": investigation.id,
         "indicator_id": indicator.id,
         "indicator_type": indicator.indicator_type.value,
         "value": indicator.value,

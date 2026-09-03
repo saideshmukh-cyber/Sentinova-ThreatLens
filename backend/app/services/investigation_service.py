@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.models.indicator import Indicator
+from backend.app.models.investigation import Investigation
 from backend.app.services import enrichment_service
 from backend.app.services.indicator_normalizer import normalize_indicator
 
@@ -67,6 +68,21 @@ def get_or_create_indicator(
         indicator_type=normalized_type,
         value=normalized_value,
     )
+
+
+def create_investigation(
+    db: Session,
+    indicator_id: int,
+):
+    investigation = Investigation(
+        indicator_id=indicator_id,
+    )
+
+    db.add(investigation)
+    db.commit()
+    db.refresh(investigation)
+
+    return investigation
 
 
 def get_enrichments(
@@ -159,6 +175,11 @@ def investigate_indicator(
     indicator,
     include_virustotal: bool = True,
 ):
+    investigation = create_investigation(
+        db=db,
+        indicator_id=indicator.id,
+    )
+
     enrichments = []
 
     local_enrichment = run_local_enrichment(
@@ -178,4 +199,4 @@ def investigate_indicator(
         if virustotal_enrichment is not None:
             enrichments.append(virustotal_enrichment)
 
-    return enrichments
+    return investigation, enrichments
