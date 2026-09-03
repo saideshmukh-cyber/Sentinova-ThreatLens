@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.db.database import Base
@@ -19,6 +19,18 @@ class Investigation(Base):
         Integer,
         nullable=False,
         index=True,
+    )
+
+    score: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    risk_level: Mapped[str] = mapped_column(
+        String(20),
+        default="LOW",
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(
