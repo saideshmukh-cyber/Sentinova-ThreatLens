@@ -51,6 +51,15 @@ def create_investigation(
             detail="Indicator not found",
         )
 
+    if (
+        indicator.indicator_type.value
+        != investigation_data.indicator_type.value
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Indicator type does not match",
+        )
+
     investigation = (
         investigation_service.create_investigation(
             db,
