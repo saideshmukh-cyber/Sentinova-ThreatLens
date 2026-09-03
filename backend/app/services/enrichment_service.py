@@ -8,7 +8,9 @@ from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.providers.dns_provider import lookup_domain
 from backend.app.providers.hash_provider import analyze_hash
 from backend.app.providers.ip_provider import analyze_ip
-from backend.app.providers.virustotal_provider import VirusTotalProvider
+from backend.app.providers.virustotal_provider import (
+    VirusTotalProvider,
+)
 from backend.app.services.scoring_service import (
     score_virustotal_result,
 )
@@ -40,7 +42,8 @@ def get_enrichments_for_indicator(
     return (
         db.query(IndicatorEnrichment)
         .filter(
-            IndicatorEnrichment.indicator_id == indicator_id
+            IndicatorEnrichment.indicator_id
+            == indicator_id
         )
         .all()
     )
@@ -51,9 +54,13 @@ def enrich_domain(
     indicator_id: int,
     domain: str,
 ):
-    normalized_domain = domain.strip().lower()
+    normalized_domain = (
+        domain.strip().lower()
+    )
 
-    cache_key = f"dns:{normalized_domain}"
+    cache_key = (
+        f"dns:{normalized_domain}"
+    )
 
     cached_data = redis_client.get(
         cache_key
@@ -107,7 +114,9 @@ def enrich_hash(
     indicator_id: int,
     value: str,
 ):
-    normalized_hash = value.strip().lower()
+    normalized_hash = (
+        value.strip().lower()
+    )
 
     hash_data = analyze_hash(
         normalized_hash
@@ -136,7 +145,8 @@ def enrich_virustotal(
     )
 
     cache_key = (
-        f"vt:{normalized_type}:{normalized_value}"
+        f"vt:{normalized_type}:"
+        f"{normalized_value}"
     )
 
     cached_data = redis_client.get(
@@ -159,8 +169,10 @@ def enrich_virustotal(
         )
 
         if result.get("status") == "ok":
-            score_data = score_virustotal_result(
-                result
+            score_data = (
+                score_virustotal_result(
+                    result
+                )
             )
 
             result.update(
@@ -174,8 +186,10 @@ def enrich_virustotal(
             )
 
     if result.get("status") == "ok":
-        score_data = score_virustotal_result(
-            result
+        score_data = (
+            score_virustotal_result(
+                result
+            )
         )
 
         result.update(

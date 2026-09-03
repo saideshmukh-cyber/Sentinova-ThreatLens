@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.config import settings
 from backend.app.db.database import SessionLocal
-from backend.app.schemas.enrichment import EnrichmentResponse
+from backend.app.models.indicator import Indicator
+from backend.app.schemas.enrichment import (
+    EnrichmentResponse,
+)
 from backend.app.services import enrichment_service
-from backend.app.services import indicator_service
 
 
 router = APIRouter(
@@ -28,13 +29,16 @@ def get_db():
     "/indicator/{indicator_id}",
     response_model=list[EnrichmentResponse],
 )
-def list_indicator_enrichments(
+def get_indicator_enrichments(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
-    indicator = indicator_service.get_indicator(
-        db,
-        indicator_id,
+    indicator = (
+        db.query(Indicator)
+        .filter(
+            Indicator.id == indicator_id
+        )
+        .first()
     )
 
     if indicator is None:
@@ -43,23 +47,29 @@ def list_indicator_enrichments(
             detail="Indicator not found",
         )
 
-    return enrichment_service.get_enrichments_for_indicator(
-        db,
-        indicator_id,
+    return (
+        enrichment_service
+        .get_enrichments_for_indicator(
+            db,
+            indicator_id,
+        )
     )
 
 
 @router.post(
-    "/indicator/{indicator_id}/dns",
+    "/{indicator_id}/dns",
     response_model=EnrichmentResponse,
 )
-def enrich_indicator_dns(
+def enrich_dns(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
-    indicator = indicator_service.get_indicator(
-        db,
-        indicator_id,
+    indicator = (
+        db.query(Indicator)
+        .filter(
+            Indicator.id == indicator_id
+        )
+        .first()
     )
 
     if indicator is None:
@@ -82,16 +92,19 @@ def enrich_indicator_dns(
 
 
 @router.post(
-    "/indicator/{indicator_id}/ip",
+    "/{indicator_id}/ip",
     response_model=EnrichmentResponse,
 )
-def enrich_indicator_ip(
+def enrich_ip(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
-    indicator = indicator_service.get_indicator(
-        db,
-        indicator_id,
+    indicator = (
+        db.query(Indicator)
+        .filter(
+            Indicator.id == indicator_id
+        )
+        .first()
     )
 
     if indicator is None:
@@ -114,16 +127,19 @@ def enrich_indicator_ip(
 
 
 @router.post(
-    "/indicator/{indicator_id}/hash",
+    "/{indicator_id}/hash",
     response_model=EnrichmentResponse,
 )
-def enrich_indicator_hash(
+def enrich_hash(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
-    indicator = indicator_service.get_indicator(
-        db,
-        indicator_id,
+    indicator = (
+        db.query(Indicator)
+        .filter(
+            Indicator.id == indicator_id
+        )
+        .first()
     )
 
     if indicator is None:
@@ -146,16 +162,19 @@ def enrich_indicator_hash(
 
 
 @router.post(
-    "/indicator/{indicator_id}/virustotal",
+    "/{indicator_id}/virustotal",
     response_model=EnrichmentResponse,
 )
-def enrich_indicator_virustotal(
+def enrich_virustotal(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
-    indicator = indicator_service.get_indicator(
-        db,
-        indicator_id,
+    indicator = (
+        db.query(Indicator)
+        .filter(
+            Indicator.id == indicator_id
+        )
+        .first()
     )
 
     if indicator is None:
@@ -164,15 +183,11 @@ def enrich_indicator_virustotal(
             detail="Indicator not found",
         )
 
-    if not settings.virustotal_api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="VirusTotal API key is not configured",
-        )
-
     return enrichment_service.enrich_virustotal(
         db=db,
         indicator_id=indicator.id,
-        indicator_type=indicator.indicator_type.value,
+        indicator_type=(
+            indicator.indicator_type.value
+        ),
         value=indicator.value,
     )
