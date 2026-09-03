@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.config import settings
 from backend.app.db.database import SessionLocal
+from backend.app.models.indicator import Indicator
 from backend.app.schemas.investigation import (
     InvestigationCreate,
     InvestigationHistoryResponse,
@@ -32,71 +32,81 @@ def get_db():
     "/",
     response_model=InvestigationResponse,
 )
-def investigate(
-    request: InvestigationCreate,
+def create_investigation(
+    investigation_data: InvestigationCreate,
     db: Session = Depends(get_db),
 ):
     indicator = (
-        investigation_service.get_or_create_indicator(
-            db=db,
-            indicator_type=request.indicator_type,
-            value=request.value,
+        db.query(Indicator)
+        .filter(
+            Indicator.value
+            == investigation_data.value
+        )
+        .first()
+    )
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    investigation = (
+        investigation_service.create_investigation(
+            db,
+            indicator.id,
         )
     )
 
-    include_virustotal = bool(
-        settings.virustotal_api_key
+    investigation_service.update_investigation_score(
+        db,
+        investigation,
     )
 
-    investigation, enrichments = (
-        investigation_service.investigate_indicator(
-            db=db,
-            indicator=indicator,
-            include_virustotal=include_virustotal,
+    enrichments = (
+        investigation_service
+        .get_enrichments_for_investigation(
+            db,
+            investigation,
         )
     )
 
-    sources = [
-        enrichment.source
-        for enrichment in enrichments
-    ]
+    sources = list(
+        {
+            enrichment.source
+            for enrichment in enrichments
+        }
+    )
 
     summary = InvestigationSummary(
         score=investigation.score,
         risk_level=investigation.risk_level,
-        enrichment_count=len(
-            enrichments
-        ),
+        enrichment_count=len(enrichments),
         sources=sources,
     )
 
-    return {
-        "investigation_id": investigation.id,
-        "indicator_id": indicator.id,
-        "indicator_type": (
-            indicator.indicator_type.value
-        ),
-        "value": indicator.value,
-        "score": investigation.score,
-        "risk_level": investigation.risk_level,
-        "summary": summary,
-        "enrichments": enrichments,
-    }
+    return InvestigationResponse(
+        investigation_id=investigation.id,
+        indicator_id=indicator.id,
+        indicator_type=indicator.indicator_type.value,
+        value=indicator.value,
+        score=investigation.score,
+        risk_level=investigation.risk_level,
+        summary=summary,
+        enrichments=enrichments,
+    )
 
 
 @router.get(
     "/",
-    response_model=list[
-        InvestigationHistoryResponse
-    ],
+    response_model=list[InvestigationHistoryResponse],
 )
-def list_investigations(
+def get_investigations(
     db: Session = Depends(get_db),
 ):
     investigations = (
-        investigation_service.get_all_investigations(
-            db
-        )
+        investigation_service
+        .get_all_investigations(db)
     )
 
     results = []
@@ -114,25 +124,17 @@ def list_investigations(
             continue
 
         results.append(
-            {
-                "investigation_id": (
-                    investigation.id
-                ),
-                "indicator_id": (
-                    investigation.indicator_id
-                ),
-                "indicator_type": (
+            InvestigationHistoryResponse(
+                investigation_id=investigation.id,
+                indicator_id=indicator.id,
+                indicator_type=(
                     indicator.indicator_type.value
                 ),
-                "value": indicator.value,
-                "score": investigation.score,
-                "risk_level": (
-                    investigation.risk_level
-                ),
-                "created_at": (
-                    investigation.created_at
-                ),
-            }
+                value=indicator.value,
+                score=investigation.score,
+                risk_level=investigation.risk_level,
+                created_at=investigation.created_at,
+            )
         )
 
     return results
@@ -174,35 +176,34 @@ def get_investigation(
         )
 
     enrichments = (
-        investigation_service.get_enrichments(
+        investigation_service
+        .get_enrichments_for_investigation(
             db,
-            indicator.id,
+            investigation,
         )
     )
 
-    sources = [
-        enrichment.source
-        for enrichment in enrichments
-    ]
+    sources = list(
+        {
+            enrichment.source
+            for enrichment in enrichments
+        }
+    )
 
     summary = InvestigationSummary(
         score=investigation.score,
         risk_level=investigation.risk_level,
-        enrichment_count=len(
-            enrichments
-        ),
+        enrichment_count=len(enrichments),
         sources=sources,
     )
 
-    return {
-        "investigation_id": investigation.id,
-        "indicator_id": indicator.id,
-        "indicator_type": (
-            indicator.indicator_type.value
-        ),
-        "value": indicator.value,
-        "score": investigation.score,
-        "risk_level": investigation.risk_level,
-        "summary": summary,
-        "enrichments": enrichments,
-    }
+    return InvestigationResponse(
+        investigation_id=investigation.id,
+        indicator_id=indicator.id,
+        indicator_type=indicator.indicator_type.value,
+        value=indicator.value,
+        score=investigation.score,
+        risk_level=investigation.risk_level,
+        summary=summary,
+        enrichments=enrichments,
+    )

@@ -58,43 +58,28 @@ def score_virustotal_result(
 
 
 def calculate_investigation_score(
-    enrichments: list,
+    enrichments: list[dict],
 ) -> int:
-    highest_score = 0
+    total_score = 0
 
     for enrichment in enrichments:
-        if not enrichment.data:
-            continue
-
-        enrichment_score = enrichment.data.get(
+        score = enrichment.get(
             "score",
             0,
         )
 
-        if isinstance(
-            enrichment_score,
-            int,
-        ):
-            highest_score = max(
-                highest_score,
-                enrichment_score,
-            )
+        if isinstance(score, int):
+            total_score += score
 
     return min(
-        highest_score,
+        total_score,
         100,
     )
 
 
 def calculate_investigation_risk(
-    enrichments: list,
-) -> tuple[int, str]:
-    score = calculate_investigation_score(
-        enrichments
-    )
-
-    risk_level = classify_risk(
+    score: int,
+) -> str:
+    return classify_risk(
         score
     )
-
-    return score, risk_level
