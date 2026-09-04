@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,9 @@ from backend.app.providers.virustotal_provider import (
 from backend.app.services.scoring_service import (
     score_virustotal_result,
 )
+
+
+ENRICHMENT_FRESHNESS_MINUTES = 5
 
 
 def create_enrichment(
@@ -50,11 +54,49 @@ def get_enrichments_for_indicator(
     )
 
 
+def get_recent_enrichment(
+    db: Session,
+    indicator_id: int,
+    source: str,
+):
+    freshness_limit = (
+        datetime.utcnow()
+        - timedelta(
+            minutes=ENRICHMENT_FRESHNESS_MINUTES
+        )
+    )
+
+    return (
+        db.query(IndicatorEnrichment)
+        .filter(
+            IndicatorEnrichment.indicator_id
+            == indicator_id,
+            IndicatorEnrichment.source
+            == source,
+            IndicatorEnrichment.created_at
+            >= freshness_limit,
+        )
+        .order_by(
+            IndicatorEnrichment.created_at.desc()
+        )
+        .first()
+    )
+
+
 def enrich_domain(
     db: Session,
     indicator_id: int,
     domain: str,
 ):
+    recent_enrichment = get_recent_enrichment(
+        db,
+        indicator_id,
+        "dns",
+    )
+
+    if recent_enrichment:
+        return recent_enrichment
+
     normalized_domain = (
         domain.strip().lower()
     )
@@ -96,6 +138,15 @@ def enrich_ip(
     indicator_id: int,
     ip: str,
 ):
+    recent_enrichment = get_recent_enrichment(
+        db,
+        indicator_id,
+        "ip_analysis",
+    )
+
+    if recent_enrichment:
+        return recent_enrichment
+
     normalized_ip = ip.strip()
 
     ip_data = analyze_ip(
@@ -115,6 +166,15 @@ def enrich_hash(
     indicator_id: int,
     value: str,
 ):
+    recent_enrichment = get_recent_enrichment(
+        db,
+        indicator_id,
+        "hash_analysis",
+    )
+
+    if recent_enrichment:
+        return recent_enrichment
+
     normalized_hash = (
         value.strip().lower()
     )
@@ -137,6 +197,15 @@ def enrich_virustotal(
     indicator_type: str,
     value: str,
 ):
+    recent_enrichment = get_recent_enrichment(
+        db,
+        indicator_id,
+        "virustotal",
+    )
+
+    if recent_enrichment:
+        return recent_enrichment
+
     normalized_type = (
         indicator_type.strip().upper()
     )
