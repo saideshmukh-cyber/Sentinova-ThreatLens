@@ -8,6 +8,7 @@ from backend.app.models.investigation import (
     Investigation,
 )
 from backend.app.services.scoring_service import (
+    calculate_investigation_breakdown,
     calculate_investigation_risk,
     calculate_investigation_score,
 )
@@ -115,4 +116,25 @@ def get_enrichments_for_investigation(
             == investigation.indicator_id
         )
         .all()
+    )
+
+
+def get_investigation_breakdown(
+    db: Session,
+    investigation: Investigation,
+):
+    enrichments = (
+        get_enrichments_for_investigation(
+            db,
+            investigation,
+        )
+    )
+
+    enrichment_data = [
+        enrichment.data
+        for enrichment in enrichments
+    ]
+
+    return calculate_investigation_breakdown(
+        enrichment_data
     )

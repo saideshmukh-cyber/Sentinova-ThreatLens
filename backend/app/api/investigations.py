@@ -80,6 +80,14 @@ def create_investigation(
         )
     )
 
+    breakdown = (
+        investigation_service
+        .get_investigation_breakdown(
+            db,
+            investigation,
+        )
+    )
+
     sources = list(
         {
             enrichment.source
@@ -92,6 +100,7 @@ def create_investigation(
         risk_level=investigation.risk_level,
         enrichment_count=len(enrichments),
         sources=sources,
+        score_breakdown=breakdown,
     )
 
     return InvestigationResponse(
@@ -192,6 +201,14 @@ def get_investigation(
         )
     )
 
+    breakdown = (
+        investigation_service
+        .get_investigation_breakdown(
+            db,
+            investigation,
+        )
+    )
+
     sources = list(
         {
             enrichment.source
@@ -204,6 +221,7 @@ def get_investigation(
         risk_level=investigation.risk_level,
         enrichment_count=len(enrichments),
         sources=sources,
+        score_breakdown=breakdown,
     )
 
     return InvestigationResponse(

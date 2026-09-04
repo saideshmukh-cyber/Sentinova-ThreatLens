@@ -2,8 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from backend.app.schemas.enrichment import EnrichmentResponse
-from backend.app.schemas.indicator import IndicatorType
+from backend.app.schemas.enrichment import (
+    EnrichmentResponse,
+)
+from backend.app.schemas.indicator import (
+    IndicatorType,
+)
 
 
 class InvestigationCreate(BaseModel):
@@ -50,6 +54,7 @@ class InvestigationSummary(BaseModel):
     risk_level: str
     enrichment_count: int
     sources: list[str]
+    score_breakdown: dict
 
 
 class InvestigationResponse(BaseModel):
