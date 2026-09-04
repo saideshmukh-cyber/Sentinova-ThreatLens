@@ -9,6 +9,7 @@ from backend.app.schemas.investigation import (
     InvestigationResponse,
     InvestigationSummary,
 )
+from backend.app.services import enrichment_service
 from backend.app.services import investigation_service
 
 
@@ -65,6 +66,11 @@ def create_investigation(
             db,
             indicator.id,
         )
+    )
+
+    enrichment_service.enrich_indicator(
+        db=db,
+        indicator=indicator,
     )
 
     investigation_service.update_investigation_score(

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.db.redis import redis_client
 from backend.app.models.enrichment import IndicatorEnrichment
+from backend.app.models.indicator import Indicator
 from backend.app.providers.dns_provider import lookup_domain
 from backend.app.providers.hash_provider import analyze_hash
 from backend.app.providers.ip_provider import analyze_ip
@@ -202,3 +203,52 @@ def enrich_virustotal(
         source="virustotal",
         data=result,
     )
+
+
+def enrich_indicator(
+    db: Session,
+    indicator: Indicator,
+):
+    indicator_type = (
+        indicator.indicator_type.value
+    )
+
+    enrichments = []
+
+    if indicator_type == "domain":
+        enrichments.append(
+            enrich_domain(
+                db=db,
+                indicator_id=indicator.id,
+                domain=indicator.value,
+            )
+        )
+
+    elif indicator_type == "ip":
+        enrichments.append(
+            enrich_ip(
+                db=db,
+                indicator_id=indicator.id,
+                ip=indicator.value,
+            )
+        )
+
+    elif indicator_type == "hash":
+        enrichments.append(
+            enrich_hash(
+                db=db,
+                indicator_id=indicator.id,
+                value=indicator.value,
+            )
+        )
+
+    enrichments.append(
+        enrich_virustotal(
+            db=db,
+            indicator_id=indicator.id,
+            indicator_type=indicator_type,
+            value=indicator.value,
+        )
+    )
+
+    return enrichments
