@@ -1,22 +1,13 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from backend.app.config import settings
 
 
-DATABASE_URL = (
-    f"postgresql+psycopg://"
-    f"{settings.POSTGRES_USER}:"
-    f"{settings.POSTGRES_PASSWORD}@"
-    f"{settings.POSTGRES_HOST}:"
-    f"{settings.POSTGRES_PORT}/"
-    f"{settings.POSTGRES_DB}"
-)
-
-
 engine = create_engine(
-    DATABASE_URL,
+    settings.database_url,
 )
+
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -24,9 +15,6 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-Base = declarative_base()
 
-
-from backend.app.models.enrichment import IndicatorEnrichment
-from backend.app.models.indicator import Indicator
-from backend.app.models.investigation import Investigation
+class Base(DeclarativeBase):
+    pass
