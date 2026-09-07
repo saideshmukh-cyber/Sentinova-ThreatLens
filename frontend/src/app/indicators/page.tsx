@@ -20,6 +20,8 @@ const indicatorTypes: IndicatorType[] = [
   "hash",
 ];
 
+const PAGE_SIZE = 10;
+
 export default function IndicatorsPage() {
   const [indicators, setIndicators] = useState<Indicator[]>(
     [],
@@ -28,9 +30,15 @@ export default function IndicatorsPage() {
   const [total, setTotal] = useState(0);
 
   const [indicatorType, setIndicatorType] =
-    useState<IndicatorType>("ip");
+    useState<IndicatorType | "">("");
 
-  const [value, setValue] = useState("");
+  const [searchInput, setSearchInput] =
+    useState("");
+
+  const [searchQuery, setSearchQuery] =
+    useState("");
+
+  const [page, setPage] = useState(1);
 
   const [loading, setLoading] = useState(true);
 
@@ -40,35 +48,61 @@ export default function IndicatorsPage() {
 
   const [success, setSuccess] = useState("");
 
-  async function loadIndicators() {
-    try {
-      setLoading(true);
-      setError("");
+  const [newIndicatorType, setNewIndicatorType] =
+    useState<IndicatorType>("ip");
 
-      const data = await getIndicators();
-
-      setIndicators(data.items);
-      setTotal(data.total);
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load indicators.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [newIndicatorValue, setNewIndicatorValue] =
+    useState("");
 
   useEffect(() => {
-    async function load() {
-      await loadIndicators();
+    let cancelled = false;
+
+    async function fetchIndicators() {
+      try {
+        const data = await getIndicators({
+          query: searchQuery || undefined,
+          indicatorType:
+            indicatorType || undefined,
+          page,
+          size: PAGE_SIZE,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setIndicators(data.items);
+        setTotal(data.total);
+        setError("");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load indicators.",
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
 
-    load();
-  }, []);
+    fetchIndicators();
 
-  async function handleSubmit(
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    searchQuery,
+    indicatorType,
+    page,
+  ]);
+
+  async function handleCreate(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -76,7 +110,7 @@ export default function IndicatorsPage() {
     setError("");
     setSuccess("");
 
-    if (!value.trim()) {
+    if (!newIndicatorValue.trim()) {
       setError(
         "Please enter an indicator value.",
       );
@@ -87,17 +121,28 @@ export default function IndicatorsPage() {
       setCreating(true);
 
       await createIndicator(
-        indicatorType,
-        value.trim(),
+        newIndicatorType,
+        newIndicatorValue.trim(),
       );
 
-      setValue("");
+      setNewIndicatorValue("");
 
       setSuccess(
         "Indicator created successfully.",
       );
 
-      await loadIndicators();
+      setPage(1);
+
+      const data = await getIndicators({
+        query: searchQuery || undefined,
+        indicatorType:
+          indicatorType || undefined,
+        page: 1,
+        size: PAGE_SIZE,
+      });
+
+      setIndicators(data.items);
+      setTotal(data.total);
     } catch (error) {
       setError(
         error instanceof Error
@@ -108,6 +153,39 @@ export default function IndicatorsPage() {
       setCreating(false);
     }
   }
+
+  function handleSearch(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    setLoading(true);
+    setPage(1);
+    setSearchQuery(
+      searchInput.trim(),
+    );
+  }
+
+  function handleTypeChange(
+    value: IndicatorType | "",
+  ) {
+    setLoading(true);
+    setPage(1);
+    setIndicatorType(value);
+  }
+
+  function clearFilters() {
+    setLoading(true);
+    setSearchInput("");
+    setSearchQuery("");
+    setIndicatorType("");
+    setPage(1);
+  }
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(total / PAGE_SIZE),
+  );
 
   return (
     <main className="flex-1">
@@ -132,14 +210,14 @@ export default function IndicatorsPage() {
           </p>
 
           <form
-            onSubmit={handleSubmit}
+            onSubmit={handleCreate}
             className="mt-6"
           >
             <div className="grid gap-4 md:grid-cols-[180px_1fr_auto]">
               <select
-                value={indicatorType}
+                value={newIndicatorType}
                 onChange={(event) =>
-                  setIndicatorType(
+                  setNewIndicatorType(
                     event.target.value as IndicatorType,
                   )
                 }
@@ -157,9 +235,11 @@ export default function IndicatorsPage() {
 
               <input
                 type="text"
-                value={value}
+                value={newIndicatorValue}
                 onChange={(event) =>
-                  setValue(event.target.value)
+                  setNewIndicatorValue(
+                    event.target.value,
+                  )
                 }
                 placeholder="Enter indicator value"
                 className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
@@ -176,23 +256,92 @@ export default function IndicatorsPage() {
               </button>
             </div>
           </form>
-
-          {error && (
-            <div className="mt-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-              {success}
-            </div>
-          )}
         </div>
 
         <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-6">
+          <div className="flex flex-col gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">
+                Search Indicators
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Search by indicator value and filter by type.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleSearch}
+              className="grid gap-4 md:grid-cols-[1fr_180px_auto_auto]"
+            >
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(event) =>
+                  setSearchInput(
+                    event.target.value,
+                  )
+                }
+                placeholder="Search indicator value"
+                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+              />
+
+              <select
+                value={indicatorType}
+                onChange={(event) =>
+                  handleTypeChange(
+                    event.target.value as IndicatorType | "",
+                  )
+                }
+                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-slate-500"
+              >
+                <option value="">
+                  All Types
+                </option>
+
+                {indicatorTypes.map((type) => (
+                  <option
+                    key={type}
+                    value={type}
+                  >
+                    {type.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="submit"
+                className="rounded-lg bg-slate-200 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white"
+              >
+                Search
+              </button>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded-lg border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              >
+                Clear
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
+            {success}
+          </div>
+        )}
+
+        <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-6">
           <p className="text-sm text-slate-400">
-            Total Indicators
+            Total Matching Indicators
           </p>
 
           <p className="mt-2 text-3xl font-bold">
@@ -218,12 +367,57 @@ export default function IndicatorsPage() {
               <p className="text-sm text-slate-400">
                 No indicators found.
               </p>
+
+              <p className="mt-2 text-xs text-slate-500">
+                Try changing your search or filter.
+              </p>
             </div>
           ) : (
             <IndicatorTable
               indicators={indicators}
             />
           )}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Page {page} of {totalPages}
+          </p>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={
+                page === 1 || loading
+              }
+              onClick={() => {
+                setLoading(true);
+                setPage((currentPage) =>
+                  currentPage - 1,
+                );
+              }}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Previous
+            </button>
+
+            <button
+              type="button"
+              disabled={
+                page >= totalPages ||
+                loading
+              }
+              onClick={() => {
+                setLoading(true);
+                setPage((currentPage) =>
+                  currentPage + 1,
+                );
+              }}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </main>

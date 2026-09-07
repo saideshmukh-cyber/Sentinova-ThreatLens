@@ -6,10 +6,54 @@ import type {
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-export async function getIndicators(): Promise<IndicatorSearchResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/indicators/`,
-  );
+export type GetIndicatorsParams = {
+  query?: string;
+  indicatorType?: IndicatorType;
+  page?: number;
+  size?: number;
+};
+
+export async function getIndicators(
+  params: GetIndicatorsParams = {},
+): Promise<IndicatorSearchResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.query) {
+    searchParams.set(
+      "query",
+      params.query,
+    );
+  }
+
+  if (params.indicatorType) {
+    searchParams.set(
+      "indicator_type",
+      params.indicatorType,
+    );
+  }
+
+  if (params.page) {
+    searchParams.set(
+      "page",
+      String(params.page),
+    );
+  }
+
+  if (params.size) {
+    searchParams.set(
+      "size",
+      String(params.size),
+    );
+  }
+
+  const queryString =
+    searchParams.toString();
+
+  const url = queryString
+    ? `${API_BASE_URL}/api/v1/indicators/?${queryString}`
+    : `${API_BASE_URL}/api/v1/indicators/`;
+
+  const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(
