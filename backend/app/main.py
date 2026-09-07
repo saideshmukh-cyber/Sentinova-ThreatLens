@@ -1,25 +1,15 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from backend.app.api.enrichments import (
-    router as enrichments_router,
-)
-from backend.app.api.feeds import (
-    router as feeds_router,
-)
-from backend.app.api.indicators import (
-    router as indicators_router,
-)
+from backend.app.api.enrichments import router as enrichments_router
+from backend.app.api.feeds import router as feeds_router
+from backend.app.api.indicators import router as indicators_router
 from backend.app.api.investigations import (
     router as investigations_router,
 )
-from backend.app.db.database import (
-    SessionLocal,
-    engine,
-)
-from backend.app.elasticsearch import (
-    check_elasticsearch_connection,
-)
+from backend.app.db.database import SessionLocal, engine
+from backend.app.elasticsearch import check_elasticsearch_connection
 from backend.app.models.indicator import Indicator
 from backend.app.services.elasticsearch_service import (
     create_indicator_index,
@@ -36,36 +26,33 @@ app = FastAPI(
 )
 
 
-app.include_router(
-    indicators_router
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app.include_router(
-    enrichments_router
-)
 
-app.include_router(
-    investigations_router
-)
-
-app.include_router(
-    feeds_router
-)
+app.include_router(indicators_router)
+app.include_router(enrichments_router)
+app.include_router(investigations_router)
+app.include_router(feeds_router)
 
 
 @app.get("/")
 def root():
-    return {
-        "message": "ThreatLens API is running"
-    }
+    return {"message": "ThreatLens API is running"}
 
 
 @app.get("/health/database")
 def database_health():
     with engine.connect() as connection:
-        result = connection.execute(
-            text("SELECT 1")
-        )
+        result = connection.execute(text("SELECT 1"))
 
         return {
             "database": "connected",
@@ -113,7 +100,7 @@ def index_existing_indicator(
 
         if indicator is None:
             return {
-                "error": "Indicator not found",
+                "error": "Indicator not found"
             }
 
         return index_indicator(indicator)
