@@ -1,12 +1,5 @@
 from fastapi import FastAPI
 from sqlalchemy import text
-from backend.app.elasticsearch import (
-    check_elasticsearch_connection,
-)
-from backend.app.services.elasticsearch_service import (
-    create_indicator_index,
-    index_indicator,
-)
 
 from backend.app.api.enrichments import (
     router as enrichments_router,
@@ -20,9 +13,22 @@ from backend.app.api.indicators import (
 from backend.app.api.investigations import (
     router as investigations_router,
 )
-from backend.app.db.database import engine
-from backend.app.db.database import SessionLocal
+from backend.app.db.database import (
+    SessionLocal,
+    engine,
+)
+from backend.app.elasticsearch import (
+    check_elasticsearch_connection,
+)
 from backend.app.models.indicator import Indicator
+from backend.app.services.elasticsearch_service import (
+    create_indicator_index,
+    index_indicator,
+    search_by_indicator_type,
+    search_indicators,
+)
+
+
 app = FastAPI(
     title="ThreatLens API",
     description="Threat intelligence platform API",
@@ -66,6 +72,7 @@ def database_health():
             "result": result.scalar(),
         }
 
+
 @app.get("/health/elasticsearch")
 def elasticsearch_health():
     return {
@@ -76,6 +83,7 @@ def elasticsearch_health():
         )
     }
 
+
 @app.post("/admin/elasticsearch/index")
 def create_elasticsearch_index():
     created = create_indicator_index()
@@ -85,7 +93,10 @@ def create_elasticsearch_index():
         "created": created,
     }
 
-@app.post("/admin/elasticsearch/index-indicator/{indicator_id}")
+
+@app.post(
+    "/admin/elasticsearch/index-indicator/{indicator_id}"
+)
 def index_existing_indicator(
     indicator_id: int,
 ):
@@ -109,3 +120,25 @@ def index_existing_indicator(
 
     finally:
         db.close()
+
+
+@app.get("/admin/elasticsearch/search")
+def search_elasticsearch(
+    query: str,
+):
+    return {
+        "query": query,
+        "results": search_indicators(query),
+    }
+
+
+@app.get("/admin/elasticsearch/search/type")
+def search_elasticsearch_by_type(
+    indicator_type: str,
+):
+    return {
+        "indicator_type": indicator_type,
+        "results": search_by_indicator_type(
+            indicator_type
+        ),
+    }

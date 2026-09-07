@@ -76,3 +76,74 @@ def index_indicator(
         "result": response["result"],
         "document": document,
     }
+
+
+def delete_indicator(
+    indicator_id: int,
+) -> dict:
+    try:
+        response = (
+            elasticsearch_client.delete(
+                index=INDEX_NAME,
+                id=str(indicator_id),
+            )
+        )
+
+        return {
+            "result": response["result"],
+            "id": indicator_id,
+        }
+
+    except Exception:
+        return {
+            "result": "not_found",
+            "id": indicator_id,
+        }
+
+
+def search_indicators(
+    query: str,
+) -> list[dict]:
+    response = elasticsearch_client.search(
+        index=INDEX_NAME,
+        query={
+            "match": {
+                "value": query,
+            }
+        },
+    )
+
+    results = []
+
+    for hit in response["hits"]["hits"]:
+        results.append(
+            hit["_source"]
+        )
+
+    return results
+
+
+def search_by_indicator_type(
+    indicator_type: str,
+) -> list[dict]:
+    indicator_type = (
+        indicator_type.strip().lower()
+    )
+
+    response = elasticsearch_client.search(
+        index=INDEX_NAME,
+        query={
+            "term": {
+                "indicator_type": indicator_type,
+            }
+        },
+    )
+
+    results = []
+
+    for hit in response["hits"]["hits"]:
+        results.append(
+            hit["_source"]
+        )
+
+    return results

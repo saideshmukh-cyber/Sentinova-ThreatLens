@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+)
 from sqlalchemy.orm import Session
 
 from backend.app.db.database import SessionLocal
@@ -7,6 +12,7 @@ from backend.app.schemas.indicator import (
     IndicatorResponse,
     IndicatorSearchResponse,
     IndicatorType,
+    IndicatorUpdate,
 )
 from backend.app.services import indicator_service
 
@@ -30,30 +36,15 @@ def get_db():
 @router.post(
     "/",
     response_model=IndicatorResponse,
+    status_code=201,
 )
 def create_indicator(
     indicator: IndicatorCreate,
     db: Session = Depends(get_db),
 ):
-    existing = (
-        indicator_service.get_indicator_by_value(
-            db,
-            indicator.value,
-        )
-    )
-
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail="Indicator already exists",
-        )
-
-    return (
-        indicator_service.create_indicator(
-            db=db,
-            indicator_type=indicator.indicator_type,
-            value=indicator.value,
-        )
+    return indicator_service.create_indicator(
+        db=db,
+        indicator_data=indicator,
     )
 
 
@@ -75,14 +66,12 @@ def search_indicators(
     ),
     db: Session = Depends(get_db),
 ):
-    return (
-        indicator_service.search_indicators(
-            db=db,
-            query=query,
-            indicator_type=indicator_type,
-            page=page,
-            size=size,
-        )
+    return indicator_service.search_indicators(
+        db=db,
+        query=query,
+        indicator_type=indicator_type,
+        page=page,
+        size=size,
     )
 
 
@@ -96,6 +85,46 @@ def get_indicator(
 ):
     indicator = (
         indicator_service.get_indicator(
+            db,
+            indicator_id,
+        )
+    )
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    return indicator
+
+
+@router.put(
+    "/{indicator_id}",
+    response_model=IndicatorResponse,
+)
+def update_indicator(
+    indicator_id: int,
+    indicator: IndicatorUpdate,
+    db: Session = Depends(get_db),
+):
+    return indicator_service.update_indicator(
+        db=db,
+        indicator_id=indicator_id,
+        indicator_data=indicator,
+    )
+
+
+@router.delete(
+    "/{indicator_id}",
+    response_model=IndicatorResponse,
+)
+def delete_indicator(
+    indicator_id: int,
+    db: Session = Depends(get_db),
+):
+    indicator = (
+        indicator_service.delete_indicator(
             db,
             indicator_id,
         )
