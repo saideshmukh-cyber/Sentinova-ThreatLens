@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  useEffect,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 
 import {
@@ -54,10 +58,15 @@ export default function IndicatorsPage() {
   const [newIndicatorValue, setNewIndicatorValue] =
     useState("");
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
 
     async function fetchIndicators() {
+      setLoading(true);
+      setError("");
+
       try {
         const data = await getIndicators({
           query: searchQuery || undefined,
@@ -73,7 +82,6 @@ export default function IndicatorsPage() {
 
         setIndicators(data.items);
         setTotal(data.total);
-        setError("");
       } catch (error) {
         if (cancelled) {
           return;
@@ -91,7 +99,7 @@ export default function IndicatorsPage() {
       }
     }
 
-    fetchIndicators();
+    void fetchIndicators();
 
     return () => {
       cancelled = true;
@@ -100,6 +108,7 @@ export default function IndicatorsPage() {
     searchQuery,
     indicatorType,
     page,
+    refreshKey,
   ]);
 
   async function handleCreate(
@@ -132,17 +141,9 @@ export default function IndicatorsPage() {
       );
 
       setPage(1);
-
-      const data = await getIndicators({
-        query: searchQuery || undefined,
-        indicatorType:
-          indicatorType || undefined,
-        page: 1,
-        size: PAGE_SIZE,
-      });
-
-      setIndicators(data.items);
-      setTotal(data.total);
+      setRefreshKey(
+        (currentKey) => currentKey + 1,
+      );
     } catch (error) {
       setError(
         error instanceof Error
@@ -159,7 +160,6 @@ export default function IndicatorsPage() {
   ) {
     event.preventDefault();
 
-    setLoading(true);
     setPage(1);
     setSearchQuery(
       searchInput.trim(),
@@ -169,23 +169,22 @@ export default function IndicatorsPage() {
   function handleTypeChange(
     value: IndicatorType | "",
   ) {
-    setLoading(true);
     setPage(1);
     setIndicatorType(value);
   }
 
   function clearFilters() {
-    setLoading(true);
     setSearchInput("");
     setSearchQuery("");
     setIndicatorType("");
     setPage(1);
   }
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(total / PAGE_SIZE),
-  );
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(total / PAGE_SIZE),
+    );
 
   return (
     <main className="flex-1">
@@ -388,14 +387,15 @@ export default function IndicatorsPage() {
             <button
               type="button"
               disabled={
-                page === 1 || loading
+                page === 1 ||
+                loading
               }
-              onClick={() => {
-                setLoading(true);
-                setPage((currentPage) =>
-                  currentPage - 1,
-                );
-              }}
+              onClick={() =>
+                setPage(
+                  (currentPage) =>
+                    currentPage - 1,
+                )
+              }
               className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Previous
@@ -407,12 +407,12 @@ export default function IndicatorsPage() {
                 page >= totalPages ||
                 loading
               }
-              onClick={() => {
-                setLoading(true);
-                setPage((currentPage) =>
-                  currentPage + 1,
-                );
-              }}
+              onClick={() =>
+                setPage(
+                  (currentPage) =>
+                    currentPage + 1,
+                )
+              }
               className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next
@@ -451,6 +451,10 @@ function IndicatorTable({
             <th className="px-6 py-4 font-medium text-slate-400">
               Created
             </th>
+
+            <th className="px-6 py-4 font-medium text-slate-400">
+              Actions
+            </th>
           </tr>
         </thead>
 
@@ -478,6 +482,15 @@ function IndicatorTable({
                 {new Date(
                   indicator.created_at,
                 ).toLocaleString()}
+              </td>
+
+              <td className="px-6 py-4">
+                <Link
+                  href={`/indicators/${indicator.id}`}
+                  className="text-sm text-slate-300 hover:text-white"
+                >
+                  View
+                </Link>
               </td>
             </tr>
           ))}

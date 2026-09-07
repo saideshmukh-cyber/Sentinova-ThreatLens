@@ -102,3 +102,74 @@ export async function createIndicator(
 
   return response.json();
 }
+
+export async function updateIndicator(
+  indicatorId: number,
+  indicatorType: IndicatorType,
+  value: string,
+): Promise<Indicator> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/indicators/${indicatorId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        indicator_type: indicatorType,
+        value,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        "Indicator not found.",
+      );
+    }
+
+    if (response.status === 409) {
+      throw new Error(
+        "This indicator already exists.",
+      );
+    }
+
+    if (response.status === 422) {
+      throw new Error(
+        "The indicator value is invalid.",
+      );
+    }
+
+    throw new Error(
+      `Failed to update indicator: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
+
+export async function deleteIndicator(
+  indicatorId: number,
+): Promise<Indicator> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/indicators/${indicatorId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        "Indicator not found.",
+      );
+    }
+
+    throw new Error(
+      `Failed to delete indicator: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
