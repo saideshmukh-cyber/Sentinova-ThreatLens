@@ -19,6 +19,7 @@ from backend.app.services.elasticsearch_service import (
     search_indicators,
 )
 from backend.app.api import security_events
+from backend.app.api import alert_rules
 
 
 app = FastAPI(
@@ -46,8 +47,7 @@ app.include_router(investigations_router)
 app.include_router(feeds_router)
 app.include_router(alerts_router)
 app.include_router(security_events.router)
-
-
+app.include_router(alert_rules.router)
 
 @app.get("/")
 def root():

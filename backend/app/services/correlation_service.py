@@ -4,6 +4,9 @@ from backend.app.models.indicator import Indicator
 from backend.app.models.security_event import (
     SecurityEvent,
 )
+from backend.app.services.alert_rule_engine import (
+    find_matching_rules,
+)
 from backend.app.services.alert_service import (
     generate_alert_for_indicator,
 )
@@ -35,13 +38,32 @@ def correlate_event(
     if indicator is None:
         return None
 
-    alert = generate_alert_for_indicator(
+    score = 50
+
+    matching_rules = find_matching_rules(
         db=db,
+        event=event,
         indicator=indicator,
-        rule=(
-            f"Indicator matched internal "
-            f"{event.source} event"
-        ),
+        score=score,
     )
 
-    return alert
+    if not matching_rules:
+        return None
+
+    alerts = []
+
+    for rule in matching_rules:
+        alert = generate_alert_for_indicator(
+            db=db,
+            indicator=indicator,
+            rule=rule.name,
+        )
+
+        if rule.route_to:
+            alert.assignee = rule.route_to
+            db.commit()
+            db.refresh(alert)
+
+        alerts.append(alert)
+
+    return alerts
