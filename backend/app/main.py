@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from backend.app.api.alerts import router as alerts_router
 from backend.app.api.enrichments import router as enrichments_router
 from backend.app.api.feeds import router as feeds_router
 from backend.app.api.indicators import router as indicators_router
@@ -42,6 +43,7 @@ app.include_router(indicators_router)
 app.include_router(enrichments_router)
 app.include_router(investigations_router)
 app.include_router(feeds_router)
+app.include_router(alerts_router)
 
 
 @app.get("/")
@@ -53,7 +55,6 @@ def root():
 def database_health():
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
-
         return {
             "database": "connected",
             "result": result.scalar(),
@@ -74,7 +75,6 @@ def elasticsearch_health():
 @app.post("/admin/elasticsearch/index")
 def create_elasticsearch_index():
     created = create_indicator_index()
-
     return {
         "index": "threatlens_indicators",
         "created": created,
