@@ -1,8 +1,16 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.models.alert import Alert, AlertStatus
-from backend.app.schemas.alert import AlertUpdate
+from backend.app.models.alert import (
+    Alert,
+    AlertStatus,
+)
+from backend.app.models.indicator import (
+    Indicator,
+)
+from backend.app.schemas.alert import (
+    AlertUpdate,
+)
 
 
 def create_alert(
@@ -25,7 +33,9 @@ def create_alert(
     return alert
 
 
-def get_alerts(db: Session):
+def get_alerts(
+    db: Session,
+):
     return (
         db.query(Alert)
         .order_by(
@@ -36,10 +46,15 @@ def get_alerts(db: Session):
     )
 
 
-def get_alert(db: Session, alert_id: int):
+def get_alert(
+    db: Session,
+    alert_id: int,
+):
     return (
         db.query(Alert)
-        .filter(Alert.id == alert_id)
+        .filter(
+            Alert.id == alert_id,
+        )
         .first()
     )
 
@@ -49,7 +64,10 @@ def update_alert(
     alert_id: int,
     alert_data: AlertUpdate,
 ):
-    alert = get_alert(db, alert_id)
+    alert = get_alert(
+        db,
+        alert_id,
+    )
 
     if alert is None:
         raise HTTPException(
@@ -61,9 +79,32 @@ def update_alert(
         alert.status = alert_data.status
 
     if alert_data.assignee is not None:
-        alert.assignee = alert_data.assignee.strip()
+        alert.assignee = (
+            alert_data.assignee.strip()
+        )
 
     db.commit()
     db.refresh(alert)
 
     return alert
+
+
+def generate_alert_for_indicator(
+    db: Session,
+    indicator: Indicator,
+    rule: str,
+):
+    return create_alert(
+        db=db,
+        indicator_id=indicator.id,
+        severity_score=calculate_alert_score(
+            indicator
+        ),
+        rule=rule,
+    )
+
+
+def calculate_alert_score(
+    indicator: Indicator,
+) -> int:
+    return 50
