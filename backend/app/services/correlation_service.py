@@ -59,11 +59,17 @@ def correlate_event(
             rule=rule.name,
         )
 
+        if alert is None:
+            continue
+
         if rule.route_to:
-            alert.assignee = rule.route_to
+            alert.assignee = (
+                rule.route_to
+            )
+
             db.commit()
             db.refresh(alert)
 
         alerts.append(alert)
 
-    return alerts
+    return alerts or None

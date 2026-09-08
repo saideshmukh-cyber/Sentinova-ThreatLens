@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.app.models.alert_rule import AlertRule
@@ -24,12 +27,79 @@ def rule_matches_event(
 
     if (
         rule.source is not None
-        and rule.source.lower()
-        != event.source.lower()
+        and rule.source.strip().lower()
+        != event.source.strip().lower()
+    ):
+        return False
+
+    if (
+        rule.category is not None
+        and (
+            event.category is None
+            or rule.category.strip().lower()
+            != event.category.strip().lower()
+        )
     ):
         return False
 
     return True
+
+
+def count_matching_events(
+    db: Session,
+    rule: AlertRule,
+    event: SecurityEvent,
+) -> int:
+    window_start = (
+        event.timestamp
+        - timedelta(
+            minutes=rule.window_minutes,
+        )
+    )
+
+    query = (
+        db.query(SecurityEvent)
+        .filter(
+            SecurityEvent.indicator_value
+            == event.indicator_value,
+            SecurityEvent.timestamp
+            >= window_start,
+            SecurityEvent.timestamp
+            <= event.timestamp,
+        )
+    )
+
+    if rule.source is not None:
+        query = query.filter(
+            func.lower(
+                SecurityEvent.source,
+            )
+            == rule.source.strip().lower()
+        )
+
+    if rule.category is not None:
+        query = query.filter(
+            func.lower(
+                SecurityEvent.category,
+            )
+            == rule.category.strip().lower()
+        )
+
+    return query.count()
+
+
+def threshold_reached(
+    db: Session,
+    rule: AlertRule,
+    event: SecurityEvent,
+) -> bool:
+    event_count = count_matching_events(
+        db=db,
+        rule=rule,
+        event=event,
+    )
+
+    return event_count >= rule.threshold
 
 
 def find_matching_rules(
@@ -49,12 +119,21 @@ def find_matching_rules(
     matching_rules = []
 
     for rule in rules:
-        if rule_matches_event(
+        if not rule_matches_event(
             rule=rule,
             event=event,
             indicator=indicator,
             score=score,
         ):
-            matching_rules.append(rule)
+            continue
+
+        if not threshold_reached(
+            db=db,
+            rule=rule,
+            event=event,
+        ):
+            continue
+
+        matching_rules.append(rule)
 
     return matching_rules

@@ -13,6 +13,13 @@ from backend.app.schemas.alert import (
 )
 
 
+OPEN_ALERT_STATUSES = [
+    AlertStatus.NEW,
+    AlertStatus.ACKNOWLEDGED,
+    AlertStatus.IN_PROGRESS,
+]
+
+
 def create_alert(
     db: Session,
     indicator_id: int,
@@ -59,6 +66,28 @@ def get_alert(
     )
 
 
+def get_open_alert_for_rule(
+    db: Session,
+    indicator_id: int,
+    rule: str,
+):
+    return (
+        db.query(Alert)
+        .filter(
+            Alert.indicator_id
+            == indicator_id,
+            Alert.rule == rule,
+            Alert.status.in_(
+                OPEN_ALERT_STATUSES,
+            ),
+        )
+        .order_by(
+            Alert.created_at.desc(),
+        )
+        .first()
+    )
+
+
 def update_alert(
     db: Session,
     alert_id: int,
@@ -94,6 +123,17 @@ def generate_alert_for_indicator(
     indicator: Indicator,
     rule: str,
 ):
+    existing_alert = (
+        get_open_alert_for_rule(
+            db=db,
+            indicator_id=indicator.id,
+            rule=rule,
+        )
+    )
+
+    if existing_alert is not None:
+        return None
+
     return create_alert(
         db=db,
         indicator_id=indicator.id,

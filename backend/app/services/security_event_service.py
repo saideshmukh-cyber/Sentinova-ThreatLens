@@ -18,6 +18,11 @@ def create_security_event(
     event = SecurityEvent(
         source=event_data.source.strip(),
         event_type=event_data.event_type.strip(),
+        category=(
+            event_data.category.strip()
+            if event_data.category
+            else None
+        ),
         indicator_value=(
             event_data.indicator_value
             .strip()
