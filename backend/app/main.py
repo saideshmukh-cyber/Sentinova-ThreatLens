@@ -45,7 +45,8 @@ app.include_router(enrichments_router)
 app.include_router(investigations_router)
 app.include_router(feeds_router)
 app.include_router(alerts_router)
-app.include_router(security_events.router,)
+app.include_router(security_events.router)
+
 
 
 @app.get("/")
