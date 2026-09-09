@@ -24,14 +24,9 @@ const intelligenceLinks = [
 ];
 
 const monitoringLinks = [
-  {
-    name: "Alerts",
-    href: "/alerts",
-  },
-  {
-    name: "Incidents",
-    href: "/incidents",
-  },
+  { name: "Alerts", href: "/alerts" },
+  { name: "Alert Rules", href: "/alert-rules" },
+  { name: "Incidents", href: "/incidents" },
 ];
 
 export default function Sidebar() {
