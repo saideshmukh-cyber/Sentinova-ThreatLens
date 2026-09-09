@@ -28,6 +28,11 @@ import type {
   IndicatorType,
 } from "@/types/indicator";
 
+import type {
+  SecurityEvent,
+  SecurityEventCreate,
+} from "@/types/security-event";
+
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
@@ -601,6 +606,58 @@ export async function deleteAlertRule(
       }
     } catch {
       // Keep default error.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function getSecurityEvents(): Promise<
+  SecurityEvent[]
+> {
+  const response = await fetch(
+    `${API_URL}/api/v1/security-events/`,
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch security events: ${response.status}`,
+    );
+  }
+
+  return response.json();
+}
+
+
+export async function createSecurityEvent(
+  data: SecurityEventCreate,
+): Promise<SecurityEvent> {
+  const response = await fetch(
+    `${API_URL}/api/v1/security-events/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    },
+  );
+
+  if (!response.ok) {
+    let message =
+      `Failed to create security event: ${response.status}`;
+
+    try {
+      const errorData =
+        await response.json();
+
+      if (errorData.detail) {
+        message = errorData.detail;
+      }
+    } catch {
+      // Keep the default error message.
     }
 
     throw new Error(message);

@@ -203,6 +203,6 @@ def generate_alert_for_indicator(
 
 
 def calculate_alert_score(
-    indicator: Indicator,
-) -> int:
+    indicator,
+):
     return 50

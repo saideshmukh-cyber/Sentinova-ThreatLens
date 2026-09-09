@@ -273,7 +273,6 @@ def enrich_virustotal(
         data=result,
     )
 
-
 def enrich_indicator(
     db: Session,
     indicator: Indicator,

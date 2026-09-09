@@ -26,6 +26,7 @@ const intelligenceLinks = [
 const monitoringLinks = [
   { name: "Alerts", href: "/alerts" },
   { name: "Alert Rules", href: "/alert-rules" },
+  { name: "Security Events", href: "/security-events" },
   { name: "Incidents", href: "/incidents" },
 ];
 
