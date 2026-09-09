@@ -36,6 +36,11 @@ class Alert(Base):
         nullable=False,
     )
 
+    incident_id: Mapped[int | None] = mapped_column(
+        ForeignKey("incidents.id"),
+        nullable=True,
+    )
+
     severity_score: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

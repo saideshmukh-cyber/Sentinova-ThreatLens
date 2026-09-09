@@ -11,17 +11,33 @@ from backend.app.schemas.incident_timeline import (
 def create_timeline_entry(
     db: Session,
     incident_id: int,
-    timeline_data: IncidentTimelineCreate,
+    timeline_data: IncidentTimelineCreate | None = None,
+    event_type: str | None = None,
+    description: str | None = None,
+    actor: str | None = None,
 ):
+    if timeline_data is not None:
+        event_type = timeline_data.event_type
+        description = timeline_data.description
+        actor = timeline_data.actor
+
+    if event_type is None:
+        raise ValueError(
+            "Timeline event type is required"
+        )
+
+    if description is None:
+        raise ValueError(
+            "Timeline description is required"
+        )
+
     entry = IncidentTimeline(
         incident_id=incident_id,
-        event_type=timeline_data.event_type.strip(),
-        description=(
-            timeline_data.description.strip()
-        ),
+        event_type=event_type.strip(),
+        description=description.strip(),
         actor=(
-            timeline_data.actor.strip()
-            if timeline_data.actor
+            actor.strip()
+            if actor
             else None
         ),
     )

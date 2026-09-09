@@ -16,6 +16,7 @@ class AlertResponse(BaseModel):
 
     id: int
     indicator_id: int
+    incident_id: int | None
     severity_score: int
     rule: str
     status: AlertStatus

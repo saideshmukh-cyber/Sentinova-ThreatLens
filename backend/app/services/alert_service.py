@@ -5,8 +5,14 @@ from backend.app.models.alert import (
     Alert,
     AlertStatus,
 )
+from backend.app.models.incident import (
+    Incident,
+)
 from backend.app.models.indicator import (
     Indicator,
+)
+from backend.app.models.incident_timeline import (
+    IncidentTimeline,
 )
 from backend.app.schemas.alert import (
     AlertUpdate,
@@ -112,6 +118,58 @@ def update_alert(
             alert_data.assignee.strip()
         )
 
+    db.commit()
+    db.refresh(alert)
+
+    return alert
+
+
+def attach_alert_to_incident(
+    db: Session,
+    alert_id: int,
+    incident_id: int,
+):
+    alert = get_alert(
+        db,
+        alert_id,
+    )
+
+    if alert is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Alert not found",
+        )
+
+    incident = (
+        db.query(Incident)
+        .filter(
+            Incident.id == incident_id,
+        )
+        .first()
+    )
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found",
+        )
+
+    if alert.incident_id == incident_id:
+        return alert
+
+    alert.incident_id = incident_id
+
+    timeline_entry = IncidentTimeline(
+        incident_id=incident_id,
+        event_type="alert_attached",
+        description=(
+            f"Alert {alert.id} was attached "
+            f"to incident {incident_id}."
+        ),
+        actor="ThreatLens",
+    )
+
+    db.add(timeline_entry)
     db.commit()
     db.refresh(alert)
 
