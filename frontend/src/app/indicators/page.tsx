@@ -9,13 +9,16 @@ import type { FormEvent } from "react";
 
 import {
   createIndicator,
+  deleteIndicator,
   getIndicators,
+  updateIndicator,
 } from "@/lib/api";
 
 import type {
   Indicator,
   IndicatorType,
 } from "@/types/indicator";
+
 
 const indicatorTypes: IndicatorType[] = [
   "ip",
@@ -26,12 +29,13 @@ const indicatorTypes: IndicatorType[] = [
 
 const PAGE_SIZE = 10;
 
-export default function IndicatorsPage() {
-  const [indicators, setIndicators] = useState<Indicator[]>(
-    [],
-  );
 
-  const [total, setTotal] = useState(0);
+export default function IndicatorsPage() {
+  const [indicators, setIndicators] =
+    useState<Indicator[]>([]);
+
+  const [total, setTotal] =
+    useState(0);
 
   const [indicatorType, setIndicatorType] =
     useState<IndicatorType | "">("");
@@ -42,15 +46,20 @@ export default function IndicatorsPage() {
   const [searchQuery, setSearchQuery] =
     useState("");
 
-  const [page, setPage] = useState(1);
+  const [page, setPage] =
+    useState(1);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] =
+    useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] =
+    useState("");
 
   const [newIndicatorType, setNewIndicatorType] =
     useState<IndicatorType>("ip");
@@ -58,7 +67,24 @@ export default function IndicatorsPage() {
   const [newIndicatorValue, setNewIndicatorValue] =
     useState("");
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [editingIndicator, setEditingIndicator] =
+    useState<Indicator | null>(null);
+
+  const [editType, setEditType] =
+    useState<IndicatorType>("ip");
+
+  const [editValue, setEditValue] =
+    useState("");
+
+  const [savingEdit, setSavingEdit] =
+    useState(false);
+
+  const [deletingId, setDeletingId] =
+    useState<number | null>(null);
+
+  const [refreshKey, setRefreshKey] =
+    useState(0);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -68,13 +94,15 @@ export default function IndicatorsPage() {
       setError("");
 
       try {
-        const data = await getIndicators({
-          query: searchQuery || undefined,
-          indicatorType:
-            indicatorType || undefined,
-          page,
-          size: PAGE_SIZE,
-        });
+        const data =
+          await getIndicators({
+            query:
+              searchQuery || undefined,
+            indicatorType:
+              indicatorType || undefined,
+            page,
+            size: PAGE_SIZE,
+          });
 
         if (cancelled) {
           return;
@@ -111,6 +139,7 @@ export default function IndicatorsPage() {
     refreshKey,
   ]);
 
+
   async function handleCreate(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -141,8 +170,10 @@ export default function IndicatorsPage() {
       );
 
       setPage(1);
+
       setRefreshKey(
-        (currentKey) => currentKey + 1,
+        (currentKey) =>
+          currentKey + 1,
       );
     } catch (error) {
       setError(
@@ -155,6 +186,7 @@ export default function IndicatorsPage() {
     }
   }
 
+
   function handleSearch(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -166,12 +198,14 @@ export default function IndicatorsPage() {
     );
   }
 
+
   function handleTypeChange(
     value: IndicatorType | "",
   ) {
     setPage(1);
     setIndicatorType(value);
   }
+
 
   function clearFilters() {
     setSearchInput("");
@@ -180,16 +214,153 @@ export default function IndicatorsPage() {
     setPage(1);
   }
 
+
+  function openEdit(
+    indicator: Indicator,
+  ) {
+    setError("");
+    setSuccess("");
+
+    setEditingIndicator(
+      indicator,
+    );
+
+    setEditType(
+      indicator.indicator_type,
+    );
+
+    setEditValue(
+      indicator.value,
+    );
+  }
+
+
+  function closeEdit() {
+    if (savingEdit) {
+      return;
+    }
+
+    setEditingIndicator(null);
+    setEditValue("");
+  }
+
+
+  async function handleEditSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!editingIndicator) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    if (!editValue.trim()) {
+      setError(
+        "Please enter an indicator value.",
+      );
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      await updateIndicator(
+        editingIndicator.id,
+        editType,
+        editValue.trim(),
+      );
+
+      setEditingIndicator(null);
+      setEditValue("");
+
+      setSuccess(
+        "Indicator updated successfully.",
+      );
+
+      setRefreshKey(
+        (currentKey) =>
+          currentKey + 1,
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update indicator.",
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+
+  async function handleDelete(
+    indicator: Indicator,
+  ) {
+    const confirmed =
+      window.confirm(
+        `Delete ${indicator.indicator_type.toUpperCase()} indicator "${indicator.value}"?`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    try {
+      setDeletingId(indicator.id);
+
+      await deleteIndicator(
+        indicator.id,
+      );
+
+      setSuccess(
+        "Indicator deleted successfully.",
+      );
+
+      if (
+        indicators.length === 1 &&
+        page > 1
+      ) {
+        setPage(
+          (currentPage) =>
+            currentPage - 1,
+        );
+      } else {
+        setRefreshKey(
+          (currentKey) =>
+            currentKey + 1,
+        );
+      }
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete indicator.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+
   const totalPages =
     Math.max(
       1,
-      Math.ceil(total / PAGE_SIZE),
+      Math.ceil(
+        total / PAGE_SIZE,
+      ),
     );
+
 
   return (
     <main className="flex-1">
       <header className="border-b border-slate-800 bg-slate-900 px-8 py-5">
-        <h2 className="text-2xl font-semibold">
+        <h2 className="text-2xl font-semibold text-white">
           Indicators
         </h2>
 
@@ -198,9 +369,10 @@ export default function IndicatorsPage() {
         </p>
       </header>
 
+
       <div className="p-8">
         <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-lg font-semibold text-white">
             Add Indicator
           </h3>
 
@@ -217,19 +389,22 @@ export default function IndicatorsPage() {
                 value={newIndicatorType}
                 onChange={(event) =>
                   setNewIndicatorType(
-                    event.target.value as IndicatorType,
+                    event.target
+                      .value as IndicatorType,
                   )
                 }
                 className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-slate-500"
               >
-                {indicatorTypes.map((type) => (
-                  <option
-                    key={type}
-                    value={type}
-                  >
-                    {type.toUpperCase()}
-                  </option>
-                ))}
+                {indicatorTypes.map(
+                  (type) => (
+                    <option
+                      key={type}
+                      value={type}
+                    >
+                      {type.toUpperCase()}
+                    </option>
+                  ),
+                )}
               </select>
 
               <input
@@ -257,10 +432,11 @@ export default function IndicatorsPage() {
           </form>
         </div>
 
+
         <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-6">
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-lg font-semibold">
+              <h3 className="text-lg font-semibold text-white">
                 Search Indicators
               </h3>
 
@@ -289,7 +465,8 @@ export default function IndicatorsPage() {
                 value={indicatorType}
                 onChange={(event) =>
                   handleTypeChange(
-                    event.target.value as IndicatorType | "",
+                    event.target
+                      .value as IndicatorType | "",
                   )
                 }
                 className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-slate-500"
@@ -298,14 +475,16 @@ export default function IndicatorsPage() {
                   All Types
                 </option>
 
-                {indicatorTypes.map((type) => (
-                  <option
-                    key={type}
-                    value={type}
-                  >
-                    {type.toUpperCase()}
-                  </option>
-                ))}
+                {indicatorTypes.map(
+                  (type) => (
+                    <option
+                      key={type}
+                      value={type}
+                    >
+                      {type.toUpperCase()}
+                    </option>
+                  ),
+                )}
               </select>
 
               <button
@@ -326,11 +505,13 @@ export default function IndicatorsPage() {
           </div>
         </div>
 
+
         {error && (
           <div className="mb-6 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
+
 
         {success && (
           <div className="mb-6 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
@@ -338,19 +519,21 @@ export default function IndicatorsPage() {
           </div>
         )}
 
+
         <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-6">
           <p className="text-sm text-slate-400">
             Total Matching Indicators
           </p>
 
-          <p className="mt-2 text-3xl font-bold">
+          <p className="mt-2 text-3xl font-bold text-white">
             {total}
           </p>
         </div>
 
+
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
           <div className="border-b border-slate-800 px-6 py-4">
-            <h3 className="font-semibold">
+            <h3 className="font-semibold text-white">
               Indicator Records
             </h3>
           </div>
@@ -374,9 +557,13 @@ export default function IndicatorsPage() {
           ) : (
             <IndicatorTable
               indicators={indicators}
+              deletingId={deletingId}
+              onEdit={openEdit}
+              onDelete={handleDelete}
             />
           )}
         </div>
+
 
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-slate-500">
@@ -420,16 +607,120 @@ export default function IndicatorsPage() {
           </div>
         </div>
       </div>
+
+
+      {editingIndicator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-white">
+                Edit Indicator
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Update the indicator type or value.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleEditSubmit}
+              className="space-y-5"
+            >
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Type
+                </label>
+
+                <select
+                  value={editType}
+                  onChange={(event) =>
+                    setEditType(
+                      event.target
+                        .value as IndicatorType,
+                    )
+                  }
+                  disabled={savingEdit}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-slate-500 disabled:opacity-50"
+                >
+                  {indicatorTypes.map(
+                    (type) => (
+                      <option
+                        key={type}
+                        value={type}
+                      >
+                        {type.toUpperCase()}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Value
+                </label>
+
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(event) =>
+                    setEditValue(
+                      event.target.value,
+                    )
+                  }
+                  disabled={savingEdit}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 font-mono text-sm text-white outline-none focus:border-slate-500 disabled:opacity-50"
+                />
+              </div>
+
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={savingEdit}
+                  className="rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingEdit
+                    ? "Saving..."
+                    : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
+
 type IndicatorTableProps = {
   indicators: Indicator[];
+  deletingId: number | null;
+  onEdit: (
+    indicator: Indicator,
+  ) => void;
+  onDelete: (
+    indicator: Indicator,
+  ) => void;
 };
+
 
 function IndicatorTable({
   indicators,
+  deletingId,
+  onEdit,
+  onDelete,
 }: IndicatorTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -459,41 +750,72 @@ function IndicatorTable({
         </thead>
 
         <tbody>
-          {indicators.map((indicator) => (
-            <tr
-              key={indicator.id}
-              className="border-b border-slate-800 last:border-b-0"
-            >
-              <td className="px-6 py-4 text-slate-300">
-                {indicator.id}
-              </td>
+          {indicators.map(
+            (indicator) => (
+              <tr
+                key={indicator.id}
+                className="border-b border-slate-800 last:border-b-0"
+              >
+                <td className="px-6 py-4 text-slate-300">
+                  {indicator.id}
+                </td>
 
-              <td className="px-6 py-4">
-                <span className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium uppercase text-slate-300">
-                  {indicator.indicator_type}
-                </span>
-              </td>
+                <td className="px-6 py-4">
+                  <span className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium uppercase text-slate-300">
+                    {indicator.indicator_type}
+                  </span>
+                </td>
 
-              <td className="px-6 py-4 font-mono text-slate-200">
-                {indicator.value}
-              </td>
+                <td className="px-6 py-4 font-mono text-slate-200">
+                  {indicator.value}
+                </td>
 
-              <td className="px-6 py-4 text-slate-400">
-                {new Date(
-                  indicator.created_at,
-                ).toLocaleString()}
-              </td>
+                <td className="px-6 py-4 text-slate-400">
+                  {new Date(
+                    indicator.created_at,
+                  ).toLocaleString()}
+                </td>
 
-              <td className="px-6 py-4">
-                <Link
-                  href={`/indicators/${indicator.id}`}
-                  className="text-sm text-slate-300 hover:text-white"
-                >
-                  View
-                </Link>
-              </td>
-            </tr>
-          ))}
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-4">
+                    <Link
+                      href={`/indicators/${indicator.id}`}
+                      className="text-sm text-slate-300 hover:text-white"
+                    >
+                      View
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onEdit(indicator)
+                      }
+                      className="text-sm text-slate-300 hover:text-white"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onDelete(indicator)
+                      }
+                      disabled={
+                        deletingId ===
+                        indicator.id
+                      }
+                      className="text-sm text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingId ===
+                      indicator.id
+                        ? "Deleting..."
+                        : "Delete"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ),
+          )}
         </tbody>
       </table>
     </div>

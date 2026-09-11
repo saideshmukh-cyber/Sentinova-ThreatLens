@@ -174,6 +174,100 @@ export async function createIndicator(
 }
 
 
+export async function updateIndicator(
+  indicatorId: number,
+  indicatorType: IndicatorType,
+  value: string,
+): Promise<Indicator> {
+  const response =
+    await fetch(
+      `${API_URL}/api/v1/indicators/${indicatorId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          indicator_type:
+            indicatorType,
+          value,
+        }),
+      },
+    );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        "Indicator not found.",
+      );
+    }
+
+    if (response.status === 409) {
+      throw new Error(
+        "Indicator already exists.",
+      );
+    }
+
+    let message =
+      `Failed to update indicator: ${response.status}`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (data.detail) {
+        message = data.detail;
+      }
+    } catch {
+      // Keep default error.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+
+export async function deleteIndicator(
+  indicatorId: number,
+): Promise<Indicator> {
+  const response =
+    await fetch(
+      `${API_URL}/api/v1/indicators/${indicatorId}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        "Indicator not found.",
+      );
+    }
+
+    let message =
+      `Failed to delete indicator: ${response.status}`;
+
+    try {
+      const data =
+        await response.json();
+
+      if (data.detail) {
+        message = data.detail;
+      }
+    } catch {
+      // Keep default error.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+
 export async function getIndicatorEnrichments(
   indicatorId: number,
 ): Promise<Enrichment[]> {
@@ -613,6 +707,7 @@ export async function deleteAlertRule(
 
   return response.json();
 }
+
 
 export async function getSecurityEvents(): Promise<
   SecurityEvent[]
