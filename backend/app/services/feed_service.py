@@ -24,49 +24,61 @@ def ingest_urlhaus_feed(
     failed = 0
 
     for item in feed_indicators:
-        indicator_type = item[
-            "indicator_type"
-        ]
-
-        value = normalize_indicator(
-            indicator_type,
-            item["value"],
-        )
-
-        if not (
-            value.startswith("http://")
-            or value.startswith("https://")
-        ):
-            failed += 1
-            continue
-
-        existing = (
-            db.query(Indicator)
-            .filter(
-                Indicator.value == value
-            )
-            .first()
-        )
-
-        if existing:
-            duplicates += 1
-            continue
-
-        indicator = Indicator(
-            indicator_type=indicator_type,
-            value=value,
-        )
-
-        db.add(indicator)
-
         try:
-            db.commit()
-            db.refresh(indicator)
-            inserted += 1
+            indicator_type = item[
+                "indicator_type"
+            ]
 
-        except IntegrityError:
-            db.rollback()
-            duplicates += 1
+            raw_value = item["value"]
+
+            value = normalize_indicator(
+                indicator_type,
+                raw_value,
+            )
+
+            if not value:
+                failed += 1
+                continue
+
+            if indicator_type == "url":
+                if not (
+                    value.startswith(
+                        "http://"
+                    )
+                    or value.startswith(
+                        "https://"
+                    )
+                ):
+                    failed += 1
+                    continue
+
+            existing = (
+                db.query(Indicator)
+                .filter(
+                    Indicator.value == value
+                )
+                .first()
+            )
+
+            if existing:
+                duplicates += 1
+                continue
+
+            indicator = Indicator(
+                indicator_type=indicator_type,
+                value=value,
+            )
+
+            db.add(indicator)
+
+            try:
+                db.commit()
+                db.refresh(indicator)
+                inserted += 1
+
+            except IntegrityError:
+                db.rollback()
+                duplicates += 1
 
         except Exception:
             db.rollback()
