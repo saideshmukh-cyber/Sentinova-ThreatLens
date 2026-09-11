@@ -23,6 +23,9 @@ from backend.app.api import alert_rules
 from backend.app.api import incidents
 from backend.app.api.websocket import router as websocket_router
 from backend.app.api import dashboard
+from backend.app.api.indicator_sources import (
+    router as indicator_sources_router,
+)
 
 app = FastAPI(
     title="ThreatLens API",
@@ -53,6 +56,7 @@ app.include_router(alert_rules.router)
 app.include_router(incidents.router)
 app.include_router(websocket_router)
 app.include_router(dashboard.router)
+app.include_router(indicator_sources_router)
 @app.get("/")
 def root():
     return {"message": "ThreatLens API is running"}

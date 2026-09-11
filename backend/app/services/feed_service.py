@@ -8,6 +8,9 @@ from backend.app.providers.urlhaus_provider import (
 from backend.app.services.indicator_normalizer import (
     normalize_indicator,
 )
+from backend.app.services.indicator_source_service import (
+    add_indicator_source,
+)
 
 
 def ingest_urlhaus_feed(
@@ -22,6 +25,7 @@ def ingest_urlhaus_feed(
     inserted = 0
     duplicates = 0
     failed = 0
+    sources_added = 0
 
     for item in feed_indicators:
         try:
@@ -29,28 +33,14 @@ def ingest_urlhaus_feed(
                 "indicator_type"
             ]
 
-            raw_value = item["value"]
-
             value = normalize_indicator(
                 indicator_type,
-                raw_value,
+                item["value"],
             )
 
             if not value:
                 failed += 1
                 continue
-
-            if indicator_type == "url":
-                if not (
-                    value.startswith(
-                        "http://"
-                    )
-                    or value.startswith(
-                        "https://"
-                    )
-                ):
-                    failed += 1
-                    continue
 
             existing = (
                 db.query(Indicator)
@@ -62,6 +52,15 @@ def ingest_urlhaus_feed(
 
             if existing:
                 duplicates += 1
+
+                add_indicator_source(
+                    db=db,
+                    indicator_id=existing.id,
+                    source="urlhaus",
+                    confidence=80,
+                )
+
+                sources_added += 1
                 continue
 
             indicator = Indicator(
@@ -74,7 +73,17 @@ def ingest_urlhaus_feed(
             try:
                 db.commit()
                 db.refresh(indicator)
+
                 inserted += 1
+
+                add_indicator_source(
+                    db=db,
+                    indicator_id=indicator.id,
+                    source="urlhaus",
+                    confidence=80,
+                )
+
+                sources_added += 1
 
             except IntegrityError:
                 db.rollback()
@@ -90,4 +99,5 @@ def ingest_urlhaus_feed(
         "inserted": inserted,
         "duplicates": duplicates,
         "failed": failed,
+        "sources_added": sources_added,
     }

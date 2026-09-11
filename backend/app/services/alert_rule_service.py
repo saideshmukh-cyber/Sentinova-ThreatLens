@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.app.models.alert_rule import AlertRule
+from backend.app.models.security_event import SecurityEvent
 from backend.app.schemas.alert_rule import (
     AlertRuleCreate,
     AlertRuleUpdate,
@@ -15,8 +18,7 @@ def create_alert_rule(
     existing = (
         db.query(AlertRule)
         .filter(
-            AlertRule.name
-            == rule_data.name.strip(),
+            AlertRule.name == rule_data.name.strip(),
         )
         .first()
     )
@@ -105,9 +107,7 @@ def update_alert_rule(
         rule.name = rule_data.name.strip()
 
     if rule_data.description is not None:
-        rule.description = (
-            rule_data.description
-        )
+        rule.description = rule_data.description
 
     if rule_data.enabled is not None:
         rule.enabled = rule_data.enabled
@@ -119,22 +119,16 @@ def update_alert_rule(
         rule.source = rule_data.source.strip()
 
     if rule_data.category is not None:
-        rule.category = (
-            rule_data.category.strip()
-        )
+        rule.category = rule_data.category.strip()
 
     if rule_data.threshold is not None:
         rule.threshold = rule_data.threshold
 
     if rule_data.window_minutes is not None:
-        rule.window_minutes = (
-            rule_data.window_minutes
-        )
+        rule.window_minutes = rule_data.window_minutes
 
     if rule_data.route_to is not None:
-        rule.route_to = (
-            rule_data.route_to.strip()
-        )
+        rule.route_to = rule_data.route_to.strip()
 
     db.commit()
     db.refresh(rule)
@@ -155,3 +149,128 @@ def delete_alert_rule(
     db.commit()
 
     return rule
+
+
+def rule_matches_event(
+    rule: AlertRule,
+    event: SecurityEvent,
+    indicator=None,
+):
+    if not rule.enabled:
+        return False
+
+    if (
+        rule.source
+        and event.source.strip().lower()
+        != rule.source.strip().lower()
+    ):
+        return False
+
+    if (
+        rule.category
+        and (
+            not event.category
+            or event.category.strip().lower()
+            != rule.category.strip().lower()
+        )
+    ):
+        return False
+
+    if (
+        rule.min_score is not None
+        and indicator is not None
+        and getattr(
+            indicator,
+            "severity_score",
+            50,
+        ) < rule.min_score
+    ):
+        return False
+
+    return True
+
+
+def count_matching_events(
+    db: Session,
+    rule: AlertRule,
+    indicator_value: str,
+    event: SecurityEvent,
+):
+    if rule.window_minutes <= 0:
+        return 1
+
+    event_time = event.timestamp
+
+    window_start = (
+        event_time
+        - timedelta(
+            minutes=rule.window_minutes
+        )
+    )
+
+    query = (
+        db.query(SecurityEvent)
+        .filter(
+            SecurityEvent.indicator_value
+            == indicator_value,
+            SecurityEvent.timestamp
+            >= window_start,
+            SecurityEvent.timestamp
+            <= event_time,
+        )
+    )
+
+    if rule.source:
+        query = query.filter(
+            SecurityEvent.source
+            == rule.source
+        )
+
+    if rule.category:
+        query = query.filter(
+            SecurityEvent.category
+            == rule.category
+        )
+
+    return query.count()
+
+
+def evaluate_rules_for_event(
+    db: Session,
+    event: SecurityEvent,
+    indicator=None,
+):
+    rules = (
+        db.query(AlertRule)
+        .filter(
+            AlertRule.enabled.is_(True),
+        )
+        .all()
+    )
+
+    matches = []
+
+    for rule in rules:
+        if not rule_matches_event(
+            rule,
+            event,
+            indicator,
+        ):
+            continue
+
+        event_count = count_matching_events(
+            db=db,
+            rule=rule,
+            indicator_value=event.indicator_value,
+            event=event,
+        )
+
+        if event_count >= rule.threshold:
+            matches.append(
+                {
+                    "rule": rule,
+                    "event_count": event_count,
+                }
+            )
+
+    return matches

@@ -165,3 +165,33 @@ def score_virustotal_result(
         "severity_score": score,
         "risk_level": risk_level,
     }
+
+def calculate_feed_score(
+    source_confidence: int,
+    malicious: int = 0,
+    suspicious: int = 0,
+    internal_sightings: int = 0,
+):
+    score = 0
+
+    score += min(
+        source_confidence // 2,
+        50,
+    )
+
+    score += min(
+        malicious * 10,
+        30,
+    )
+
+    score += min(
+        suspicious * 5,
+        10,
+    )
+
+    score += min(
+        internal_sightings * 5,
+        10,
+    )
+
+    return min(score, 100)

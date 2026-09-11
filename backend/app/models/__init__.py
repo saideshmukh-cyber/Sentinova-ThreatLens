@@ -4,3 +4,4 @@ from backend.app.models.security_event import SecurityEvent
 from backend.app.models.alert_rule import AlertRule
 from backend.app.models.incident import (Incident,IncidentSeverity,IncidentStatus)
 from backend.app.models.incident_timeline import (IncidentTimeline)
+from backend.app.models.indicator_source import IndicatorSource

@@ -236,8 +236,16 @@ async def attach_alert_to_incident(
 
 def calculate_alert_score(
     indicator,
+    internal_sightings: int = 0,
 ):
-    return 50
+    score = 50
+
+    score += min(
+        internal_sightings * 10,
+        50,
+    )
+
+    return min(score, 100)
 
 
 async def generate_alert_for_indicator(
@@ -245,12 +253,10 @@ async def generate_alert_for_indicator(
     indicator,
     rule: str,
 ):
-    existing_alert = (
-        get_open_alert_for_rule(
-            db=db,
-            indicator_id=indicator.id,
-            rule=rule,
-        )
+    existing_alert = get_open_alert_for_rule(
+        db=db,
+        indicator_id=indicator.id,
+        rule=rule,
     )
 
     if existing_alert is not None:
