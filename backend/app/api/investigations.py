@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+)
 from sqlalchemy.orm import Session
 
 from backend.app.db.database import SessionLocal
@@ -126,27 +131,29 @@ def create_investigation(
     response_model=list[InvestigationHistoryResponse],
 )
 def get_investigations(
+    page: int = Query(
+        default=1,
+        ge=1,
+    ),
+    size: int = Query(
+        default=25,
+        ge=1,
+        le=100,
+    ),
     db: Session = Depends(get_db),
 ):
-    investigations = (
+    investigation_rows = (
         investigation_service
-        .get_all_investigations(db)
+        .get_all_investigations(
+            db=db,
+            page=page,
+            size=size,
+        )
     )
 
     results = []
 
-    for investigation in investigations:
-        indicator = (
-            investigation_service
-            .get_indicator_for_investigation(
-                db,
-                investigation,
-            )
-        )
-
-        if indicator is None:
-            continue
-
+    for investigation, indicator in investigation_rows:
         results.append(
             InvestigationHistoryResponse(
                 investigation_id=investigation.id,
@@ -162,6 +169,29 @@ def get_investigations(
         )
 
     return results
+
+
+@router.post(
+    "/admin/create-for-existing-indicators",
+)
+def create_for_existing_indicators(
+    db: Session = Depends(get_db),
+):
+    investigations = (
+        investigation_service
+        .create_investigations_for_all_indicators(
+            db
+        )
+    )
+
+    return {
+        "created_or_existing": len(
+            investigations
+        ),
+        "message": (
+            "Investigations created for existing indicators"
+        ),
+    }
 
 
 @router.get(

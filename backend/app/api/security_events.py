@@ -32,12 +32,12 @@ def get_db():
     response_model=SecurityEventResponse,
     status_code=201,
 )
-def create_security_event(
+async def create_security_event(
     event: SecurityEventCreate,
     db: Session = Depends(get_db),
 ):
     result = (
-        security_event_service
+        await security_event_service
         .ingest_security_event(
             db,
             event,

@@ -30,6 +30,51 @@ def create_investigation(
 
     return investigation
 
+def create_investigation_for_existing_indicator(
+    db: Session,
+    indicator: Indicator,
+):
+    existing = (
+        db.query(Investigation)
+        .filter(
+            Investigation.indicator_id
+            == indicator.id
+        )
+        .first()
+    )
+
+    if existing is not None:
+        return existing
+
+    return create_investigation(
+        db=db,
+        indicator_id=indicator.id,
+    )
+
+
+def create_investigations_for_all_indicators(
+    db: Session,
+):
+    indicators = (
+        db.query(Indicator)
+        .order_by(Indicator.id.asc())
+        .all()
+    )
+
+    investigations = []
+
+    for indicator in indicators:
+        investigation = (
+            create_investigation_for_existing_indicator(
+                db=db,
+                indicator=indicator,
+            )
+        )
+
+        investigations.append(investigation)
+
+    return investigations
+
 
 def update_investigation_score(
     db: Session,
@@ -81,14 +126,37 @@ def get_investigation(
 
 def get_all_investigations(
     db: Session,
+    page: int = 1,
+    size: int = 25,
 ):
+    offset = (page - 1) * size
+
     return (
-        db.query(Investigation)
-        .order_by(
-            Investigation.created_at.desc()
+        db.query(
+            Investigation,
+            Indicator,
         )
+        .join(
+            Indicator,
+            Indicator.id
+            == Investigation.indicator_id,
+        )
+        .order_by(
+            Investigation.created_at.desc(),
+            Investigation.id.desc(),
+        )
+        .offset(offset)
+        .limit(size)
         .all()
     )
+
+
+def get_investigation_count(
+    db: Session,
+):
+    return db.query(
+        Investigation
+    ).count()
 
 
 def get_indicator_for_investigation(

@@ -20,13 +20,13 @@ def find_matching_indicator(
         db.query(Indicator)
         .filter(
             Indicator.value
-            == event.indicator_value,
+            == event.indicator_value
         )
         .first()
     )
 
 
-def correlate_event(
+async def correlate_event(
     db: Session,
     event: SecurityEvent,
 ):
@@ -53,7 +53,7 @@ def correlate_event(
     alerts = []
 
     for rule in matching_rules:
-        alert = generate_alert_for_indicator(
+        alert = await generate_alert_for_indicator(
             db=db,
             indicator=indicator,
             rule=rule.name,

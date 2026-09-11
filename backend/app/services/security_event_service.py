@@ -44,13 +44,13 @@ def get_security_events(
     return (
         db.query(SecurityEvent)
         .order_by(
-            SecurityEvent.timestamp.desc(),
+            SecurityEvent.timestamp.desc()
         )
         .all()
     )
 
 
-def ingest_security_event(
+async def ingest_security_event(
     db: Session,
     event_data: SecurityEventCreate,
 ):
@@ -59,7 +59,7 @@ def ingest_security_event(
         event_data,
     )
 
-    alert = correlate_event(
+    alert = await correlate_event(
         db,
         event,
     )

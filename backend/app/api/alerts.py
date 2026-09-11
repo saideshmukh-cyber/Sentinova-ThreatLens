@@ -46,12 +46,12 @@ def get_alerts(
     "/{alert_id}",
     response_model=AlertResponse,
 )
-def update_alert(
+async def update_alert(
     alert_id: int,
     alert: AlertUpdate,
     db: Session = Depends(get_db),
 ):
-    return alert_service.update_alert(
+    return await alert_service.update_alert(
         db=db,
         alert_id=alert_id,
         alert_data=alert,
@@ -62,12 +62,12 @@ def update_alert(
     "/{alert_id}/incident/{incident_id}",
     response_model=AlertResponse,
 )
-def attach_alert_to_incident(
+async def attach_alert_to_incident(
     alert_id: int,
     incident_id: int,
     db: Session = Depends(get_db),
 ):
-    return (
+    return await (
         alert_service
         .attach_alert_to_incident(
             db=db,

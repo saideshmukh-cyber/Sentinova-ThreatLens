@@ -21,7 +21,8 @@ from backend.app.services.elasticsearch_service import (
 from backend.app.api import security_events
 from backend.app.api import alert_rules
 from backend.app.api import incidents
-
+from backend.app.api.websocket import router as websocket_router
+from backend.app.api import dashboard
 
 app = FastAPI(
     title="ThreatLens API",
@@ -50,7 +51,8 @@ app.include_router(alerts_router)
 app.include_router(security_events.router)
 app.include_router(alert_rules.router)
 app.include_router(incidents.router)
-
+app.include_router(websocket_router)
+app.include_router(dashboard.router)
 @app.get("/")
 def root():
     return {"message": "ThreatLens API is running"}

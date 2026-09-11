@@ -6,33 +6,37 @@ from sqlalchemy import pool
 
 from backend.app.config import settings
 from backend.app.db.database import Base
-from backend.app.models import indicator
+
 from backend.app.models.alert import Alert
+from backend.app.models.alert_rule import AlertRule
 from backend.app.models.enrichment import IndicatorEnrichment
+from backend.app.models.incident import Incident
+from backend.app.models.incident_timeline import IncidentTimeline
+from backend.app.models.indicator import Indicator
+from backend.app.models.investigation import Investigation
+from backend.app.models.security_event import SecurityEvent
 
 
-# Alembic Config object.
 config = context.config
 
 
-# Configure Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 
-# Import all models that Alembic should detect.
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in offline mode."""
     url = settings.database_url
 
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
+        dialect_opts={
+            "paramstyle": "named",
+        },
     )
 
     with context.begin_transaction():
@@ -40,14 +44,16 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in online mode."""
     config.set_main_option(
         "sqlalchemy.url",
         settings.database_url,
     )
 
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        config.get_section(
+            config.config_ini_section,
+            {},
+        ),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

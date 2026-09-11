@@ -5,18 +5,12 @@ from backend.app.models.alert import (
     Alert,
     AlertStatus,
 )
-from backend.app.models.incident import (
-    Incident,
-)
-from backend.app.models.indicator import (
-    Indicator,
-)
+from backend.app.models.incident import Incident
 from backend.app.models.incident_timeline import (
     IncidentTimeline,
 )
-from backend.app.schemas.alert import (
-    AlertUpdate,
-)
+from backend.app.schemas.alert import AlertUpdate
+from backend.app.websocket.manager import manager
 
 
 OPEN_ALERT_STATUSES = [
@@ -66,7 +60,7 @@ def get_alert(
     return (
         db.query(Alert)
         .filter(
-            Alert.id == alert_id,
+            Alert.id == alert_id
         )
         .first()
     )
@@ -80,21 +74,75 @@ def get_open_alert_for_rule(
     return (
         db.query(Alert)
         .filter(
-            Alert.indicator_id
-            == indicator_id,
+            Alert.indicator_id == indicator_id,
             Alert.rule == rule,
             Alert.status.in_(
-                OPEN_ALERT_STATUSES,
+                OPEN_ALERT_STATUSES
             ),
         )
         .order_by(
-            Alert.created_at.desc(),
+            Alert.created_at.desc()
         )
         .first()
     )
 
 
-def update_alert(
+def alert_to_message(
+    alert: Alert,
+):
+    return {
+        "id": alert.id,
+        "indicator_id": alert.indicator_id,
+        "incident_id": alert.incident_id,
+        "severity_score": alert.severity_score,
+        "rule": alert.rule,
+        "status": alert.status.value,
+        "assignee": alert.assignee,
+        "created_at": (
+            alert.created_at.isoformat()
+        ),
+        "updated_at": (
+            alert.updated_at.isoformat()
+        ),
+    }
+
+
+async def broadcast_alert(
+    alert: Alert,
+    event: str = "alert.created",
+):
+    await manager.broadcast(
+        {
+            "event": event,
+            "data": alert_to_message(
+                alert
+            ),
+        }
+    )
+
+
+async def create_and_broadcast_alert(
+    db: Session,
+    indicator_id: int,
+    severity_score: int,
+    rule: str,
+):
+    alert = create_alert(
+        db=db,
+        indicator_id=indicator_id,
+        severity_score=severity_score,
+        rule=rule,
+    )
+
+    await broadcast_alert(
+        alert,
+        event="alert.created",
+    )
+
+    return alert
+
+
+async def update_alert(
     db: Session,
     alert_id: int,
     alert_data: AlertUpdate,
@@ -121,10 +169,15 @@ def update_alert(
     db.commit()
     db.refresh(alert)
 
+    await broadcast_alert(
+        alert,
+        event="alert.updated",
+    )
+
     return alert
 
 
-def attach_alert_to_incident(
+async def attach_alert_to_incident(
     db: Session,
     alert_id: int,
     incident_id: int,
@@ -143,7 +196,7 @@ def attach_alert_to_incident(
     incident = (
         db.query(Incident)
         .filter(
-            Incident.id == incident_id,
+            Incident.id == incident_id
         )
         .first()
     )
@@ -173,12 +226,23 @@ def attach_alert_to_incident(
     db.commit()
     db.refresh(alert)
 
+    await broadcast_alert(
+        alert,
+        event="alert.updated",
+    )
+
     return alert
 
 
-def generate_alert_for_indicator(
+def calculate_alert_score(
+    indicator,
+):
+    return 50
+
+
+async def generate_alert_for_indicator(
     db: Session,
-    indicator: Indicator,
+    indicator,
     rule: str,
 ):
     existing_alert = (
@@ -192,7 +256,7 @@ def generate_alert_for_indicator(
     if existing_alert is not None:
         return None
 
-    return create_alert(
+    alert = await create_and_broadcast_alert(
         db=db,
         indicator_id=indicator.id,
         severity_score=calculate_alert_score(
@@ -201,8 +265,4 @@ def generate_alert_for_indicator(
         rule=rule,
     )
 
-
-def calculate_alert_score(
-    indicator,
-):
-    return 50
+    return alert

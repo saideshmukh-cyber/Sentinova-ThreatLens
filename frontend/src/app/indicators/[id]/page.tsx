@@ -281,9 +281,10 @@ export default function IndicatorDetailPage({
           indicator.indicator_type,
         );
 
-      setEnrichments(
+      setEnrichments((current) => [
         updated,
-      );
+        ...current,
+      ]);
     } catch (err) {
       setEnrichmentError(
         err instanceof Error
