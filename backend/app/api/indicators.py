@@ -15,6 +15,7 @@ from backend.app.schemas.indicator import (
     IndicatorUpdate,
 )
 from backend.app.services import indicator_service
+from backend.app.services import indicator_scoring_service
 
 
 router = APIRouter(
@@ -137,3 +138,46 @@ def delete_indicator(
         )
 
     return indicator
+
+
+@router.post(
+    "/{indicator_id}/score",
+)
+def score_indicator(
+    indicator_id: int,
+    db: Session = Depends(get_db),
+):
+    indicator = (
+        indicator_service.get_indicator(
+            db,
+            indicator_id,
+        )
+    )
+
+    if indicator is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Indicator not found",
+        )
+
+    score = (
+        indicator_scoring_service
+        .calculate_indicator_score(
+            db=db,
+            indicator=indicator,
+        )
+    )
+
+    breakdown = (
+        indicator_scoring_service
+        .get_indicator_score_breakdown(
+            db=db,
+            indicator=indicator,
+        )
+    )
+
+    return {
+        "message": "Indicator scored successfully",
+        "score": score,
+        "breakdown": breakdown,
+    }

@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+
+
 def calculate_investigation_score(
     enrichment_data,
 ):
@@ -166,6 +169,7 @@ def score_virustotal_result(
         "risk_level": risk_level,
     }
 
+
 def calculate_feed_score(
     source_confidence: int,
     malicious: int = 0,
@@ -194,4 +198,81 @@ def calculate_feed_score(
         10,
     )
 
-    return min(score, 100)
+    return min(
+        score,
+        100,
+    )
+
+
+def calculate_indicator_severity(
+    source_confidence: int = 0,
+    source_count: int = 0,
+    internal_sightings: int = 0,
+    enrichment_score: int = 0,
+    last_seen: datetime | None = None,
+) -> int:
+    """
+    Calculate a reproducible 0-100 indicator severity score.
+
+    Factors:
+    - source confidence
+    - number of intelligence sources
+    - internal sightings
+    - enrichment severity
+    - recency
+    """
+
+    source_confidence = max(
+        0,
+        min(source_confidence, 100),
+    )
+
+    source_count = max(
+        source_count,
+        0,
+    )
+
+    internal_sightings = max(
+        internal_sightings,
+        0,
+    )
+
+    enrichment_score = max(
+        0,
+        min(enrichment_score, 100),
+    )
+
+    score = 0
+
+    score += int(
+        source_confidence * 0.35
+    )
+
+    score += min(
+        source_count * 5,
+        15,
+    )
+
+    score += min(
+        internal_sightings * 10,
+        30,
+    )
+
+    score += int(
+        enrichment_score * 0.30
+    )
+
+    if last_seen is not None:
+        now = datetime.utcnow()
+
+        age = now - last_seen
+
+        if age <= timedelta(hours=24):
+            score += 10
+        elif age <= timedelta(days=7):
+            score += 5
+
+    return min(
+        max(score, 0),
+        100,
+    )
