@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+)
 from sqlalchemy.orm import Session
 
 from backend.app.db.database import SessionLocal
 from backend.app.services import feed_registry
 from backend.app.services import feed_service
-
+from backend.app.services.realtime_service import (
+    broadcast_high_severity_indicator,
+)
 
 router = APIRouter(
     prefix="/api/v1/feeds",
@@ -24,55 +30,39 @@ def get_db():
 @router.get("/")
 def get_available_feeds():
     return {
+        "count": len(
+            feed_registry.FEED_PROVIDERS
+        ),
         "feeds": (
             feed_registry
             .get_available_feeds()
-        )
+        ),
     }
 
 
-@router.post("/urlhaus")
-def ingest_urlhaus(
-    db: Session = Depends(get_db),
-):
-    return (
-        feed_service
-        .ingest_urlhaus_feed(db)
-    )
-
-
 @router.post("/{feed_name}/run")
-def run_feed(
+async def run_feed(
     feed_name: str,
     db: Session = Depends(get_db),
 ):
     try:
-        provider = (
-            feed_registry
-            .get_feed_provider(
-                feed_name
-            )
+        return feed_service.ingest_feed(
+            db=db,
+            feed_name=feed_name,
         )
+
+        return result
+
     except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail=str(exc),
         )
 
-    if feed_name.lower() == "urlhaus":
-        return (
-            feed_service
-            .ingest_urlhaus_feed(db)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Feed execution failed: {exc}"
+            ),
         )
-
-    indicators = (
-        provider.fetch_indicators()
-    )
-
-    return {
-        "source": feed_name,
-        "fetched": len(indicators),
-        "message": (
-            "Provider executed successfully."
-        ),
-    }

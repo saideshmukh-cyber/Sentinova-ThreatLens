@@ -1,43 +1,42 @@
 import csv
-from io import StringIO
+import io
+import urllib.request
 
-import httpx
-
-
-URLHAUS_FEED_URL = (
-    "https://urlhaus.abuse.ch/downloads/csv_recent/"
+from backend.app.providers.base_feed_provider import (
+    BaseFeedProvider,
 )
 
 
-class URLhausProvider:
+class URLhausProvider(BaseFeedProvider):
+    name = "urlhaus"
+    description = "Abuse.ch URLhaus malicious URL feed."
+
+    url = (
+        "https://urlhaus.abuse.ch/"
+        "downloads/csv_recent/"
+    )
 
     def fetch_indicators(self) -> list[dict]:
-        try:
-            with httpx.Client(
-                timeout=30.0
-            ) as client:
-                response = client.get(
-                    URLHAUS_FEED_URL
-                )
-
-        except httpx.RequestError:
-            return []
-
-        if response.status_code != 200:
-            return []
-
-        return self.parse_feed(
-            response.text
+        request = urllib.request.Request(
+            self.url,
+            headers={
+                "User-Agent": "ThreatLens/1.0",
+            },
         )
 
-    @staticmethod
-    def parse_feed(
-        feed_text: str,
-    ) -> list[dict]:
-        indicators = []
+        with urllib.request.urlopen(
+            request,
+            timeout=15,
+        ) as response:
+            content = response.read().decode(
+                "utf-8",
+                errors="ignore",
+            )
+
+        results = []
 
         reader = csv.reader(
-            StringIO(feed_text)
+            io.StringIO(content)
         )
 
         for row in reader:
@@ -52,21 +51,17 @@ class URLhausProvider:
 
             url = row[2].strip()
 
-            if not url:
-                continue
-
             if not (
                 url.startswith("http://")
                 or url.startswith("https://")
             ):
                 continue
 
-            indicators.append(
+            results.append(
                 {
                     "indicator_type": "url",
                     "value": url,
-                    "source": "urlhaus",
                 }
             )
 
-        return indicators
+        return results
