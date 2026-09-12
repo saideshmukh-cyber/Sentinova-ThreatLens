@@ -212,7 +212,7 @@ def count_matching_events(
         db.query(SecurityEvent)
         .filter(
             SecurityEvent.indicator_value
-            == indicator_value,
+            == indicator_value.strip().lower(),
             SecurityEvent.timestamp
             >= window_start,
             SecurityEvent.timestamp
@@ -222,14 +222,16 @@ def count_matching_events(
 
     if rule.source:
         query = query.filter(
-            SecurityEvent.source
-            == rule.source
+            SecurityEvent.source.ilike(
+                rule.source.strip()
+            )
         )
 
     if rule.category:
         query = query.filter(
-            SecurityEvent.category
-            == rule.category
+            SecurityEvent.category.ilike(
+                rule.category.strip()
+            )
         )
 
     return query.count()
