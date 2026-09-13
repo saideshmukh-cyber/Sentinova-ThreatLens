@@ -17,7 +17,9 @@ from backend.app.schemas.indicator import (
 from backend.app.services import indicator_scoring_service
 from backend.app.services import indicator_service
 from backend.app.services import realtime_service
-
+from backend.app.services import (
+    incident_correlation_service,
+)
 
 router = APIRouter(
     prefix="/api/v1/indicators",
@@ -168,6 +170,13 @@ async def score_indicator(
             indicator=indicator,
         )
     )
+    timeline_entries = (
+        incident_correlation_service
+        .correlate_indicator_with_incidents(
+            db=db,
+            indicator=indicator,
+        )
+    )
 
     await realtime_service.broadcast_if_high_severity(
         indicator=indicator,
@@ -194,4 +203,5 @@ async def score_indicator(
             "crossed_high_severity"
         ],
         "breakdown": breakdown,
+        "timeline_entries_created": len(timeline_entries),
     }

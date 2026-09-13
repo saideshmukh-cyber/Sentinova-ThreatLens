@@ -1,6 +1,7 @@
 from fastapi import (
     APIRouter,
     Depends,
+    HTTPException,
 )
 from sqlalchemy.orm import Session
 
@@ -164,4 +165,52 @@ def get_incident_timeline(
             db,
             incident_id,
         )
+    )
+
+@router.get(
+    "/{incident_id}/timeline",
+    response_model=list[IncidentTimelineResponse],
+)
+def get_incident_timeline(
+    incident_id: int,
+    db: Session = Depends(get_db),
+):
+    incident = incident_service.get_incident(
+        db,
+        incident_id,
+    )
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found",
+        )
+
+    return incident_service.get_incident_timeline(
+        db=db,
+        incident_id=incident_id,
+    )
+
+@router.get(
+    "/{incident_id}/timeline",
+    response_model=list[IncidentTimelineResponse],
+)
+def get_incident_timeline(
+    incident_id: int,
+    db: Session = Depends(get_db),
+):
+    incident = incident_service.get_incident(
+        db,
+        incident_id,
+    )
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found",
+        )
+
+    return incident_service.get_incident_timeline(
+        db=db,
+        incident_id=incident_id,
     )

@@ -25,13 +25,13 @@ class IncidentTimelineCreate(BaseModel):
 
 
 class IncidentTimelineResponse(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
-
     id: int
     incident_id: int
     event_type: str
     description: str
     actor: str | None
     created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )

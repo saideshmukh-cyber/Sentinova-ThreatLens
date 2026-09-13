@@ -11,7 +11,9 @@ from backend.app.schemas.incident import (
 from backend.app.services import (
     incident_timeline_service,
 )
-
+from backend.app.models.incident_timeline import (
+    IncidentTimeline,
+)
 
 def create_incident(
     db: Session,
@@ -179,3 +181,20 @@ def delete_incident(
     db.commit()
 
     return incident
+
+def get_incident_timeline(
+    db: Session,
+    incident_id: int,
+):
+    return (
+        db.query(IncidentTimeline)
+        .filter(
+            IncidentTimeline.incident_id
+            == incident_id
+        )
+        .order_by(
+            IncidentTimeline.created_at.desc(),
+            IncidentTimeline.id.desc(),
+        )
+        .all()
+    )

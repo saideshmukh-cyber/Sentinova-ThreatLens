@@ -7,7 +7,9 @@ from backend.app.services import alert_rule_service
 from backend.app.services import alert_service
 from backend.app.services import indicator_scoring_service
 from backend.app.services import realtime_service
-
+from backend.app.services import (
+    incident_correlation_service,
+)
 
 async def ingest_security_event(
     db: Session,
@@ -28,6 +30,13 @@ async def ingest_security_event(
     db.add(security_event)
     db.commit()
     db.refresh(security_event)
+    correlated_timeline_entries = (
+        incident_correlation_service
+        .correlate_security_event_with_incidents(
+            db=db,
+            event=security_event,
+        )
+    )
 
     indicator = (
         db.query(Indicator)
@@ -102,6 +111,9 @@ async def ingest_security_event(
         "alerts_created": len(
             created_alerts
         ),
+            "timeline_entries_created": len(
+            correlated_timeline_entries
+        ),    
     }
 
 
