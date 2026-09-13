@@ -1,6 +1,4 @@
-from backend.app.websocket.manager import (
-    manager,
-)
+from backend.app.websocket.manager import manager
 
 
 HIGH_SEVERITY_THRESHOLD = 80
@@ -8,16 +6,17 @@ HIGH_SEVERITY_THRESHOLD = 80
 
 async def broadcast_high_severity_indicator(
     indicator,
-    confidence: int,
 ):
-    if confidence < HIGH_SEVERITY_THRESHOLD:
+    score = int(
+        indicator.severity_score or 0
+    )
+
+    if score < HIGH_SEVERITY_THRESHOLD:
         return
 
     await manager.broadcast(
         {
-            "event": (
-                "indicators.high_severity"
-            ),
+            "event": "indicators.high_severity",
             "data": {
                 "indicator": {
                     "id": indicator.id,
@@ -25,7 +24,7 @@ async def broadcast_high_severity_indicator(
                         indicator.indicator_type.value
                     ),
                     "value": indicator.value,
-                    "confidence": confidence,
+                    "severity_score": score,
                     "created_at": (
                         indicator.created_at.isoformat()
                         if indicator.created_at
@@ -35,3 +34,20 @@ async def broadcast_high_severity_indicator(
             },
         }
     )
+
+
+async def broadcast_if_high_severity(
+    indicator,
+    previous_score: int,
+):
+    current_score = int(
+        indicator.severity_score or 0
+    )
+
+    if (
+        previous_score < HIGH_SEVERITY_THRESHOLD
+        and current_score >= HIGH_SEVERITY_THRESHOLD
+    ):
+        await broadcast_high_severity_indicator(
+            indicator
+        )

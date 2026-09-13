@@ -5,6 +5,8 @@ from backend.app.models.security_event import SecurityEvent
 from backend.app.schemas.security_event import SecurityEventCreate
 from backend.app.services import alert_rule_service
 from backend.app.services import alert_service
+from backend.app.services import indicator_scoring_service
+from backend.app.services import realtime_service
 
 
 async def ingest_security_event(
@@ -36,6 +38,22 @@ async def ingest_security_event(
         .first()
     )
 
+    if indicator is not None:
+        transition = (
+            indicator_scoring_service
+            .calculate_indicator_score_transition(
+                db=db,
+                indicator=indicator,
+            )
+        )
+
+        await realtime_service.broadcast_if_high_severity(
+            indicator=indicator,
+            previous_score=transition[
+                "previous_score"
+            ],
+        )
+
     matching_rules = (
         alert_rule_service.evaluate_rules_for_event(
             db=db,
@@ -46,32 +64,26 @@ async def ingest_security_event(
 
     created_alerts = []
 
-    if matching_rules and indicator is not None:
+    if matching_rules:
         for match in matching_rules:
             rule = match["rule"]
 
-            existing_alert = (
-                alert_service
-                .get_open_alert_for_indicator(
-                    db=db,
-                    indicator_id=indicator.id,
-                )
+            severity_score = (
+                indicator.severity_score
+                if indicator is not None
+                else 50
             )
-
-            if existing_alert:
-                continue
 
             alert = (
                 await alert_service
                 .create_and_broadcast_alert(
                     db=db,
-                    indicator_id=indicator.id,
-                    severity_score=(
-                        alert_service.calculate_alert_score(
-                            indicator,
-                            match["event_count"],
-                        )
+                    indicator_id=(
+                        indicator.id
+                        if indicator
+                        else 0
                     ),
+                    severity_score=severity_score,
                     rule=rule.name,
                 )
             )
@@ -79,28 +91,11 @@ async def ingest_security_event(
             created_alerts.append(alert)
 
     elif indicator is not None:
-        existing_alert = (
-            alert_service
-            .get_open_alert_for_indicator(
-                db=db,
-                indicator_id=indicator.id,
-            )
+        await alert_service.generate_alert_for_indicator(
+            db=db,
+            indicator=indicator,
+            rule="Internal security event correlation",
         )
-
-        if not existing_alert:
-            alert = (
-                await alert_service
-                .generate_alert_for_indicator(
-                    db=db,
-                    indicator=indicator,
-                    rule=(
-                        "Internal security "
-                        "event correlation"
-                    ),
-                )
-            )
-
-            created_alerts.append(alert)
 
     return {
         "event": security_event,
@@ -118,10 +113,10 @@ def find_events_for_indicator(
         db.query(SecurityEvent)
         .filter(
             SecurityEvent.indicator_value
-            == indicator_value.strip().lower()
+            == indicator_value
         )
         .order_by(
-            SecurityEvent.timestamp.desc(),
+            SecurityEvent.timestamp.desc()
         )
         .all()
     )
@@ -135,7 +130,7 @@ def count_events_for_indicator(
         db.query(SecurityEvent)
         .filter(
             SecurityEvent.indicator_value
-            == indicator_value.strip().lower()
+            == indicator_value
         )
         .count()
     )

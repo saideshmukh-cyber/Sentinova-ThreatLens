@@ -14,8 +14,9 @@ from backend.app.schemas.indicator import (
     IndicatorType,
     IndicatorUpdate,
 )
-from backend.app.services import indicator_service
 from backend.app.services import indicator_scoring_service
+from backend.app.services import indicator_service
+from backend.app.services import realtime_service
 
 
 router = APIRouter(
@@ -143,7 +144,7 @@ def delete_indicator(
 @router.post(
     "/{indicator_id}/score",
 )
-def score_indicator(
+async def score_indicator(
     indicator_id: int,
     db: Session = Depends(get_db),
 ):
@@ -160,12 +161,19 @@ def score_indicator(
             detail="Indicator not found",
         )
 
-    score = (
+    transition = (
         indicator_scoring_service
-        .calculate_indicator_score(
+        .calculate_indicator_score_transition(
             db=db,
             indicator=indicator,
         )
+    )
+
+    await realtime_service.broadcast_if_high_severity(
+        indicator=indicator,
+        previous_score=transition[
+            "previous_score"
+        ],
     )
 
     breakdown = (
@@ -178,6 +186,12 @@ def score_indicator(
 
     return {
         "message": "Indicator scored successfully",
-        "score": score,
+        "score": transition["score"],
+        "previous_score": transition[
+            "previous_score"
+        ],
+        "crossed_high_severity": transition[
+            "crossed_high_severity"
+        ],
         "breakdown": breakdown,
     }

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -18,7 +18,8 @@ def create_alert_rule(
     existing = (
         db.query(AlertRule)
         .filter(
-            AlertRule.name == rule_data.name.strip(),
+            AlertRule.name
+            == rule_data.name.strip(),
         )
         .first()
     )
@@ -107,7 +108,9 @@ def update_alert_rule(
         rule.name = rule_data.name.strip()
 
     if rule_data.description is not None:
-        rule.description = rule_data.description
+        rule.description = (
+            rule_data.description
+        )
 
     if rule_data.enabled is not None:
         rule.enabled = rule_data.enabled
@@ -119,16 +122,24 @@ def update_alert_rule(
         rule.source = rule_data.source.strip()
 
     if rule_data.category is not None:
-        rule.category = rule_data.category.strip()
+        rule.category = (
+            rule_data.category.strip()
+        )
 
     if rule_data.threshold is not None:
-        rule.threshold = rule_data.threshold
+        rule.threshold = (
+            rule_data.threshold
+        )
 
     if rule_data.window_minutes is not None:
-        rule.window_minutes = rule_data.window_minutes
+        rule.window_minutes = (
+            rule_data.window_minutes
+        )
 
     if rule_data.route_to is not None:
-        rule.route_to = rule_data.route_to.strip()
+        rule.route_to = (
+            rule_data.route_to.strip()
+        )
 
     db.commit()
     db.refresh(rule)
@@ -179,13 +190,21 @@ def rule_matches_event(
     if (
         rule.min_score is not None
         and indicator is not None
-        and getattr(
-            indicator,
-            "severity_score",
-            50,
-        ) < rule.min_score
     ):
-        return False
+        indicator_score = int(
+            getattr(
+                indicator,
+                "severity_score",
+                0,
+            )
+            or 0
+        )
+
+        if (
+            indicator_score
+            < rule.min_score
+        ):
+            return False
 
     return True
 
@@ -260,11 +279,15 @@ def evaluate_rules_for_event(
         ):
             continue
 
-        event_count = count_matching_events(
-            db=db,
-            rule=rule,
-            indicator_value=event.indicator_value,
-            event=event,
+        event_count = (
+            count_matching_events(
+                db=db,
+                rule=rule,
+                indicator_value=(
+                    event.indicator_value
+                ),
+                event=event,
+            )
         )
 
         if event_count >= rule.threshold:

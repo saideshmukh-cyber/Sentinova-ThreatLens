@@ -11,6 +11,22 @@ def calculate_alert_score(
     indicator,
     internal_sightings: int = 0,
 ):
+    if indicator is not None:
+        return min(
+            max(
+                int(
+                    getattr(
+                        indicator,
+                        "severity_score",
+                        0,
+                    )
+                    or 0
+                ),
+                0,
+            ),
+            100,
+        )
+
     score = 50
 
     score += min(
@@ -18,8 +34,10 @@ def calculate_alert_score(
         50,
     )
 
-    return min(score, 100)
-
+    return min(
+        score,
+        100,
+    )
 
 def create_alert(
     db: Session,
@@ -319,7 +337,6 @@ async def generate_alert_for_indicator(
         indicator_id=indicator.id,
         severity_score=calculate_alert_score(
             indicator,
-            0,
         ),
         rule=rule,
     )

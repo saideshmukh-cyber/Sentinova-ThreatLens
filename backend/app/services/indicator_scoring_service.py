@@ -1,10 +1,8 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
+from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.models.indicator import Indicator
 from backend.app.models.indicator_source import IndicatorSource
-from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.models.security_event import SecurityEvent
 from backend.app.services.scoring_service import (
     calculate_indicator_severity,
@@ -55,22 +53,22 @@ def calculate_indicator_score(
     enrichment_score = 0
 
     for enrichment in enrichments:
-        data = enrichment.data
-
-        if not isinstance(data, dict):
+        if not isinstance(
+            enrichment.data,
+            dict,
+        ):
             continue
 
-        if "severity_score" in data:
-            enrichment_score = max(
-                enrichment_score,
-                int(
-                    data.get(
-                        "severity_score",
-                        0,
-                    )
-                    or 0
-                ),
-            )
+        enrichment_score = max(
+            enrichment_score,
+            int(
+                enrichment.data.get(
+                    "severity_score",
+                    0,
+                )
+                or 0
+            ),
+        )
 
     last_seen = None
 
@@ -96,6 +94,31 @@ def calculate_indicator_score(
     db.refresh(indicator)
 
     return score
+
+
+def calculate_indicator_score_transition(
+    db: Session,
+    indicator: Indicator,
+) -> dict:
+    previous_score = int(
+        indicator.severity_score or 0
+    )
+
+    score = calculate_indicator_score(
+        db=db,
+        indicator=indicator,
+    )
+
+    crossed_high_severity = (
+        previous_score < 80
+        and score >= 80
+    )
+
+    return {
+        "previous_score": previous_score,
+        "score": score,
+        "crossed_high_severity": crossed_high_severity,
+    }
 
 
 def get_indicator_score_breakdown(

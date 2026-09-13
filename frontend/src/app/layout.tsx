@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import Sidebar from "@/components/Sidebar";
+import RealtimeIndicatorToast from "@/components/RealtimeIndicatorToast";
 
 export const metadata: Metadata = {
   title: "ThreatLens",
@@ -21,6 +22,7 @@ export default function RootLayout({
 
           <div className="flex min-w-0 flex-1 flex-col">
             {children}
+            <RealtimeIndicatorToast />
           </div>
         </div>
       </body>
