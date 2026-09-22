@@ -1,23 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getAlerts } from "@/lib/api";
+import { DonutLegend, Heatmap, LinkButton, MetricCard, MiniBars, Panel, PanelHeader, SeverityBadge } from "@/components/DashboardPrimitives";
 
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8000";
-
-
-type RecentAlert = {
-  id: number;
-  indicator_id: number;
-  severity_score: number;
-  rule: string;
-  status: string;
-  assignee: string | null;
-  created_at: string;
-};
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type DashboardSummary = {
   total_indicators: number;
@@ -28,399 +15,123 @@ type DashboardSummary = {
   total_incidents: number;
   open_incidents: number;
   total_security_events: number;
-  indicator_distribution: {
-    ip: number;
-    domain: number;
-    url: number;
-    hash: number;
-  };
-  recent_alerts: RecentAlert[];
+  indicator_distribution: { ip: number; domain: number; url: number; hash: number };
+  recent_alerts: Array<{ id: number; indicator_id: number; severity_score: number; rule: string; status: string; assignee: string | null; created_at: string }>;
 };
 
+type Alert = Awaited<ReturnType<typeof getAlerts>>[number];
 
 export default function Home() {
-  const [
-    dashboard,
-    setDashboard,
-  ] = useState<DashboardSummary | null>(
-    null,
-  );
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadDashboard() {
+    let active = true;
+    async function load() {
       try {
-        const response =
-          await fetch(
-            `${API_URL}/api/v1/dashboard/summary`,
-          );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to load dashboard: ${response.status}`,
-          );
-        }
-
-        const data =
-          await response.json();
-
-        setDashboard(data);
+        const [summaryResponse, alertData] = await Promise.all([
+          fetch(`${API_URL}/api/v1/dashboard/summary`),
+          getAlerts(),
+        ]);
+        if (!summaryResponse.ok) throw new Error(`Failed to load dashboard: ${summaryResponse.status}`);
+        const summary = (await summaryResponse.json()) as DashboardSummary;
+        if (!active) return;
+        setDashboard(summary);
+        setAlerts(alertData);
+        setError(null);
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load dashboard.",
-        );
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load dashboard.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
-
-    loadDashboard();
+    void load();
+    return () => { active = false; };
   }, []);
 
+  const averageScore = useMemo(() => {
+    if (alerts.length === 0) return 0;
+    return Math.round(alerts.reduce((sum, alert) => sum + alert.severity_score, 0) / alerts.length);
+  }, [alerts]);
 
-  if (loading) {
-    return (
-      <main className="flex-1 p-8">
-        <h2 className="text-2xl font-semibold">
-          Security Dashboard
-        </h2>
+  if (loading) return <div className="p-6 lg:p-8"><div className="h-6 w-56 animate-pulse rounded bg-slate-800" /><div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-900" />)}</div></div>;
+  if (error || !dashboard) return <div className="p-6 lg:p-8"><div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 text-sm text-rose-300">{error ?? "Dashboard data unavailable."}</div></div>;
 
-        <p className="mt-2 text-sm text-slate-400">
-          Loading dashboard...
-        </p>
-      </main>
-    );
-  }
-
-
-  if (error || !dashboard) {
-    return (
-      <main className="flex-1 p-8">
-        <h2 className="text-2xl font-semibold">
-          Security Dashboard
-        </h2>
-
-        <div className="mt-6 rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-300">
-          {error ??
-            "Dashboard data unavailable."}
-        </div>
-      </main>
-    );
-  }
-
+  const distribution = dashboard.indicator_distribution;
 
   return (
-    <main className="flex-1">
-      <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-8 py-5">
+    <div className="p-5 sm:p-6 lg:p-8">
+      <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
-          <h2 className="text-2xl font-semibold">
-            Security Dashboard
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-400">
-            Threat intelligence overview
-          </p>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">Operational snapshot</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">ThreatLens Command Center</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">A shared SOC workspace for indicators, alerts, incidents, correlation and live threat activity.</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-300">
-            System Online
-          </div>
-
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold">
-            TL
-          </div>
-        </div>
-      </header>
-
-
-      <div className="p-8">
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold">
-            Intelligence Overview
-          </h3>
-
-          <p className="mt-1 text-sm text-slate-400">
-            Monitor indicators, investigations,
-            alerts, and threat activity.
-          </p>
-        </div>
-
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <DashboardCard
-            title="Total Indicators"
-            value={
-              dashboard.total_indicators
-            }
-            description="IPs, domains, URLs and hashes"
-          />
-
-          <DashboardCard
-            title="Investigations"
-            value={
-              dashboard.total_investigations
-            }
-            description="Tracked indicator investigations"
-          />
-
-          <DashboardCard
-            title="High Risk"
-            value={
-              dashboard.high_risk_investigations
-            }
-            description="High and critical investigations"
-          />
-
-          <DashboardCard
-            title="Alerts"
-            value={
-              dashboard.total_alerts
-            }
-            description={`${dashboard.open_alerts} currently open`}
-          />
-        </div>
-
-
-        <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <DashboardCard
-            title="Incidents"
-            value={
-              dashboard.total_incidents
-            }
-            description={`${dashboard.open_incidents} currently open`}
-          />
-
-          <DashboardCard
-            title="Security Events"
-            value={
-              dashboard.total_security_events
-            }
-            description="Events received by ThreatLens"
-          />
-
-          <DashboardCard
-            title="IP Indicators"
-            value={
-              dashboard
-                .indicator_distribution.ip
-            }
-            description="Known IP addresses"
-          />
-
-          <DashboardCard
-            title="Domain Indicators"
-            value={
-              dashboard
-                .indicator_distribution.domain
-            }
-            description="Known domains"
-          />
-        </div>
-
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <IndicatorDistribution
-            distribution={
-              dashboard.indicator_distribution
-            }
-          />
-
-          <RecentAlerts
-            alerts={
-              dashboard.recent_alerts
-            }
-          />
-        </div>
+        <div className="flex gap-2"><LinkButton href="/dashboards/soc-analyst">Open analyst workspace</LinkButton><LinkButton href="/indicators">Search intelligence</LinkButton></div>
       </div>
-    </main>
-  );
-}
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Indicators" value={dashboard.total_indicators} detail="Canonical IOC records" tone="accent" />
+        <MetricCard label="Open Alerts" value={dashboard.open_alerts} detail={`${dashboard.total_alerts.toLocaleString()} total alerts`} tone="danger" />
+        <MetricCard label="Open Incidents" value={dashboard.open_incidents} detail={`${dashboard.total_incidents.toLocaleString()} total incidents`} />
+        <MetricCard label="Avg Alert Score" value={averageScore} detail="Current alert population" />
+      </div>
 
-type DashboardCardProps = {
-  title: string;
-  value: number;
-  description: string;
-};
-
-
-function DashboardCard({
-  title,
-  value,
-  description,
-}: DashboardCardProps) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-      <p className="text-sm text-slate-400">
-        {title}
-      </p>
-
-      <p className="mt-3 text-3xl font-bold">
-        {value.toLocaleString()}
-      </p>
-
-      <p className="mt-2 text-xs text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-
-type DistributionProps = {
-  distribution: {
-    ip: number;
-    domain: number;
-    url: number;
-    hash: number;
-  };
-};
-
-
-function IndicatorDistribution({
-  distribution,
-}: DistributionProps) {
-  const total =
-    distribution.ip +
-    distribution.domain +
-    distribution.url +
-    distribution.hash;
-
-
-  const rows = [
-    {
-      label: "IP",
-      value: distribution.ip,
-    },
-    {
-      label: "Domain",
-      value: distribution.domain,
-    },
-    {
-      label: "URL",
-      value: distribution.url,
-    },
-    {
-      label: "Hash",
-      value: distribution.hash,
-    },
-  ];
-
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-      <h3 className="font-semibold">
-        Indicator Distribution
-      </h3>
-
-      <div className="mt-6 space-y-4">
-        {rows.map((row) => {
-          const percentage =
-            total === 0
-              ? 0
-              : Math.round(
-                  (row.value / total) *
-                    100,
-                );
-
-          return (
-            <div key={row.label}>
-              <div className="mb-1 flex items-center justify-between text-sm">
-                <span className="text-slate-300">
-                  {row.label}
-                </span>
-
-                <span className="text-slate-500">
-                  {row.value.toLocaleString()}{" "}
-                  ({percentage}%)
-                </span>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_0.9fr_0.9fr]">
+        <Panel>
+          <PanelHeader title="Threat activity" subtitle="Live operational signal overview" />
+          <div className="p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300">Security events</div>
+                <div className="mt-2 text-3xl font-semibold text-white">{dashboard.total_security_events.toLocaleString()}</div>
+                <div className="mt-1 text-xs text-slate-500">Received by the correlation layer</div>
               </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                <div
-                  className="h-full rounded-full bg-slate-500"
-                  style={{
-                    width: `${percentage}%`,
-                  }}
-                />
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Investigations</div>
+                <div className="mt-2 text-3xl font-semibold text-white">{dashboard.total_investigations.toLocaleString()}</div>
+                <div className="mt-1 text-xs text-slate-500">{dashboard.high_risk_investigations.toLocaleString()} high-risk investigations</div>
               </div>
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+            <div className="mt-5"><MiniBars values={[28, 44, 38, 61, 52, 74, 63, 82, 69, 88, 78, 94]} /></div>
+          </div>
+        </Panel>
 
+        <Panel>
+          <PanelHeader title="Indicator mix" subtitle="Current normalized corpus" />
+          <div className="p-5"><DonutLegend rows={[{ label: "IP", value: distribution.ip, className: "bg-cyan-400" }, { label: "Domain", value: distribution.domain, className: "bg-sky-400" }, { label: "URL", value: distribution.url, className: "bg-violet-400" }, { label: "Hash", value: distribution.hash, className: "bg-amber-400" }]} /></div>
+        </Panel>
 
-type RecentAlertsProps = {
-  alerts: RecentAlert[];
-};
-
-
-function RecentAlerts({
-  alerts,
-}: RecentAlertsProps) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">
-          Recent Alerts
-        </h3>
-
-        <a
-          href="/alerts"
-          className="text-xs text-slate-400 hover:text-white"
-        >
-          View all
-        </a>
+        <Panel>
+          <PanelHeader title="Global activity" subtitle="Threat density visualization" />
+          <div className="p-5"><Heatmap /></div>
+        </Panel>
       </div>
 
-      {alerts.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-slate-700 p-6 text-center">
-          <p className="text-sm text-slate-400">
-            No alerts available.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 space-y-3">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="rounded-lg border border-slate-800 bg-slate-950 p-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-white">
-                  {alert.rule}
-                </span>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <Panel>
+          <PanelHeader title="Priority alert queue" subtitle="Most recent alerts requiring analyst attention" action={<LinkButton href="/alerts">View all</LinkButton>} />
+          <div className="divide-y divide-slate-800/80">
+            {dashboard.recent_alerts.length === 0 ? <div className="p-6 text-sm text-slate-500">No alerts available.</div> : dashboard.recent_alerts.slice(0, 6).map((alert) => {
+              const severity = alert.severity_score >= 90 ? "critical" : alert.severity_score >= 70 ? "high" : alert.severity_score >= 40 ? "medium" : "low";
+              return <div key={alert.id} className="flex items-center gap-4 px-5 py-4"><SeverityBadge severity={severity} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-slate-200">{alert.rule}</div><div className="mt-1 text-xs text-slate-500">Indicator #{alert.indicator_id} · {alert.assignee ?? "Unassigned"}</div></div><div className="text-right"><div className="text-sm font-semibold text-white">{alert.severity_score}</div><div className="mt-1 text-[10px] uppercase tracking-wider text-slate-600">{alert.status}</div></div></div>;
+            })}
+          </div>
+        </Panel>
 
-                <span className="text-sm font-semibold text-slate-300">
-                  {alert.severity_score}
-                </span>
-              </div>
-
-              <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                <span>
-                  Indicator #{alert.indicator_id}
-                </span>
-
-                <span>
-                  {alert.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        <Panel>
+          <PanelHeader title="Coverage posture" subtitle="Operational counts from the current backend" />
+          <div className="grid grid-cols-2 gap-3 p-5">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">URLs</div><div className="mt-2 text-xl font-semibold text-white">{distribution.url.toLocaleString()}</div></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">Hashes</div><div className="mt-2 text-xl font-semibold text-white">{distribution.hash.toLocaleString()}</div></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">High-risk investigations</div><div className="mt-2 text-xl font-semibold text-white">{dashboard.high_risk_investigations.toLocaleString()}</div></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">Open alerts</div><div className="mt-2 text-xl font-semibold text-white">{dashboard.open_alerts.toLocaleString()}</div></div>
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }

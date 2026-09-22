@@ -1,30 +1,17 @@
 import type { Metadata } from "next";
 import "./globals.css";
-
-import Sidebar from "@/components/Sidebar";
-import RealtimeIndicatorToast from "@/components/RealtimeIndicatorToast";
+import SocShell from "@/components/SocShell";
 
 export const metadata: Metadata = {
-  title: "ThreatLens",
-  description: "Threat intelligence platform",
+  title: "ThreatLens | CTI Operations",
+  description: "Cyber threat intelligence operations dashboard",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-white">
-        <div className="flex min-h-screen">
-          <Sidebar />
-
-          <div className="flex min-w-0 flex-1 flex-col">
-            {children}
-            <RealtimeIndicatorToast />
-          </div>
-        </div>
+      <body className="min-h-screen bg-[#071018] text-slate-100 antialiased">
+        <SocShell>{children}</SocShell>
       </body>
     </html>
   );

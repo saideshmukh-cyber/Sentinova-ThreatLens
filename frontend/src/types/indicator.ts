@@ -1,4 +1,8 @@
-export type IndicatorType = "ip" | "domain" | "url" | "hash";
+export type IndicatorType =
+  | "ip"
+  | "domain"
+  | "url"
+  | "hash";
 
 export type Indicator = {
   id: number;

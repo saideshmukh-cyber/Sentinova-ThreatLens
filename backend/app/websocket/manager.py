@@ -3,43 +3,29 @@ from fastapi import WebSocket
 
 class ConnectionManager:
     def __init__(self):
-        self.connections: list[
-            WebSocket
-        ] = []
+        self.connections: list[WebSocket] = []
 
-    async def connect(
-        self,
-        websocket: WebSocket,
-    ):
+    async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.connections.append(
-            websocket
-        )
+        self.connections.append(websocket)
 
-    def disconnect(
-        self,
-        websocket: WebSocket,
-    ):
+    def disconnect(self, websocket: WebSocket):
         if websocket in self.connections:
-            self.connections.remove(
-                websocket
-            )
+            self.connections.remove(websocket)
 
-    async def broadcast(
-        self,
-        message: dict,
-    ):
-        disconnected = []
+    async def broadcast(self, message: dict):
+        # An empty payload cannot be a valid alert event.
+        # Do not send it to connected frontend clients.
+        if not isinstance(message, dict) or not message:
+            return
+
+        disconnected: list[WebSocket] = []
 
         for websocket in self.connections:
             try:
-                await websocket.send_json(
-                    message
-                )
+                await websocket.send_json(message)
             except Exception:
-                disconnected.append(
-                    websocket
-                )
+                disconnected.append(websocket)
 
         for websocket in disconnected:
             self.disconnect(websocket)
