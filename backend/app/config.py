@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     redis_url: str
     virustotal_api_key: str = ""
     elasticsearch_url: str = "http://localhost:9200"
+    otx_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

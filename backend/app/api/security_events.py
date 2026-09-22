@@ -17,7 +17,6 @@ router = APIRouter(
 
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
     finally:
@@ -26,22 +25,17 @@ def get_db():
 
 @router.post(
     "/",
+    response_model=SecurityEventResponse,
+    status_code=201,
 )
 async def create_security_event(
     event: SecurityEventCreate,
     db: Session = Depends(get_db),
 ):
-    result = await security_event_service.ingest_security_event(
+    return await security_event_service.ingest_security_event(
         db=db,
         event=event,
     )
-
-    return {
-        "event": SecurityEventResponse.model_validate(
-            result["event"]
-        ),
-        "alerts_created": result["alerts_created"],
-    }
 
 
 @router.get(

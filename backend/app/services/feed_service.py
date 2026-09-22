@@ -1,148 +1,85 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.app.models.indicator import Indicator
-from backend.app.services.feed_registry import (
-    get_feed_provider,
-)
-from backend.app.services.indicator_normalizer import (
-    normalize_indicator,
-)
-from backend.app.services.indicator_source_service import (
-    add_indicator_source,
-)
+from backend.app.models.indicator import Indicator, IndicatorType
+from backend.app.models.indicator_source import IndicatorSource
+from backend.app.providers.feed_registry import get_feed_provider
+from backend.app.services.elasticsearch_service import index_indicator
+from backend.app.services.indicator_normalizer import normalize_indicator
 
-SOURCE_CONFIDENCE = {
+CONFIDENCE = {
     "urlhaus": 80,
     "threatfox": 85,
-    "feodo": 85,
+    "feodo-tracker": 85,
     "malwarebazaar": 90,
     "otx": 75,
     "cisa-kev": 95,
 }
 
 
-def ingest_feed(
-    db: Session,
-    feed_name: str,
-) -> dict:
-    provider = get_feed_provider(
-        feed_name
-    )
+def ingest_feed(db: Session, feed_name: str):
+    name = feed_name.strip().lower()
+    provider = get_feed_provider(name)
+    if provider is None:
+        raise ValueError(f"Unknown feed: {name}")
 
-    source = provider.name
-    confidence = SOURCE_CONFIDENCE.get(
-        source,
-        70,
-    )
-
-    feed_indicators = (
-        provider.fetch_indicators()
-    )
-
-    inserted = 0
-    duplicates = 0
-    failed = 0
-    sources_added = 0
+    rows = provider.fetch_indicators()
+    created = 0
+    updated_sources = 0
+    skipped = 0
     unsupported = 0
+    confidence = CONFIDENCE.get(name, 50)
 
-    for item in feed_indicators:
-        try:
-            indicator_type = item.get(
-                "indicator_type"
-            )
-
-            value = item.get(
-                "value"
-            )
-
-            if not indicator_type or not value:
-                failed += 1
-                continue
-
-            if indicator_type == "cve":
+    for row in rows:
+        indicator_type = row.get("indicator_type")
+        value = row.get("value")
+        if indicator_type not in {member.value for member in IndicatorType} or not value:
+            if indicator_type == "unsupported":
                 unsupported += 1
-                continue
-
-            normalized_value = (
-                normalize_indicator(
-                    indicator_type,
-                    value,
-                )
-            )
-
-            if not normalized_value:
-                failed += 1
-                continue
-
-            existing = (
-                db.query(Indicator)
-                .filter(
-                    Indicator.value
-                    == normalized_value,
-                )
-                .first()
-            )
-
-            if existing:
-                duplicates += 1
-
-                add_indicator_source(
-                    db=db,
-                    indicator_id=existing.id,
-                    source=source,
-                    confidence=confidence,
-                )
-
-                sources_added += 1
-                continue
-
-            indicator = Indicator(
-                indicator_type=indicator_type,
-                value=normalized_value,
-            )
-
-            db.add(indicator)
-
-            try:
-                db.commit()
-                db.refresh(indicator)
-
-                inserted += 1
-
-                add_indicator_source(
-                    db=db,
-                    indicator_id=indicator.id,
-                    source=source,
-                    confidence=confidence,
-                )
-
-                sources_added += 1
-
-
-            except IntegrityError:
-                db.rollback()
-
-                duplicates += 1
-
+            else:
+                skipped += 1
+            continue
+        try:
+            normalized = normalize_indicator(indicator_type, value)
         except Exception:
-            db.rollback()
-            failed += 1
+            skipped += 1
+            continue
+        indicator = db.query(Indicator).filter(Indicator.value == normalized).first()
+        if indicator is None:
+            indicator = Indicator(indicator_type=indicator_type, value=normalized, severity_score=0)
+            db.add(indicator)
+            db.flush()
+            created += 1
+        source = db.query(IndicatorSource).filter(
+            IndicatorSource.indicator_id == indicator.id,
+            IndicatorSource.source == name,
+        ).first()
+        if source is None:
+            source = IndicatorSource(
+                indicator_id=indicator.id,
+                source=name,
+                confidence=confidence,
+            )
+            db.add(source)
+            updated_sources += 1
+        else:
+            source.confidence = max(source.confidence, confidence)
+        db.flush()
+        try:
+            index_indicator(indicator)
+        except Exception:
+            pass
 
+    db.commit()
     return {
-        "source": source,
-        "fetched": len(feed_indicators),
-        "inserted": inserted,
-        "duplicates": duplicates,
-        "failed": failed,
+        "feed": name,
+        "fetched": len(rows),
+        "created": created,
+        "sources_added_or_updated": updated_sources,
+        "skipped": skipped,
         "unsupported": unsupported,
-        "sources_added": sources_added,
     }
 
-def ingest_urlhaus_feed(
-    db: Session,
-) -> dict:
-    return ingest_feed(
-        db=db,
-        feed_name="urlhaus",
-    )
+
+def ingest_urlhaus_feed(db: Session):
+    return ingest_feed(db, "urlhaus")

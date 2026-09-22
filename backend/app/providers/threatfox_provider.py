@@ -1,59 +1,34 @@
-import json
-import urllib.request
-
-from backend.app.providers.base_feed_provider import (
-    BaseFeedProvider,
-)
+import httpx
+from backend.app.providers.base_feed_provider import BaseFeedProvider
 
 
 class ThreatFoxProvider(BaseFeedProvider):
     name = "threatfox"
-    description = "Abuse.ch ThreatFox IOC feed."
-
-    url = (
-        "https://threatfox.abuse.ch/"
-        "export/json/recent/"
-    )
+    url = "https://threatfox.abuse.ch/export/json/recent/"
 
     def fetch_indicators(self) -> list[dict]:
-        request = urllib.request.Request(
-            self.url,
-            headers={
-                "User-Agent": "ThreatLens/1.0",
-            },
-        )
-
-        with urllib.request.urlopen(
-            request,
-            timeout=15,
-        ) as response:
-            payload = json.loads(
-                response.read().decode("utf-8")
-            )
-
-        results = []
-
-        for item in payload.get("data", []):
-            ioc_type = item.get("ioc_type")
-            value = item.get("ioc")
-
+        with httpx.Client(timeout=45.0) as client:
+            response = client.get(self.url)
+            response.raise_for_status()
+        payload = response.json()
+        result = []
+        rows = payload if isinstance(payload, list) else payload.get("data", [])
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            value = row.get("ioc")
             if not value:
                 continue
-
-            if ioc_type == "ip:port":
-                value = value.split(":")[0]
-                ioc_type = "ip"
-
-            if ioc_type in {
-                "ip",
-                "domain",
-                "url",
-            }:
-                results.append(
-                    {
-                        "indicator_type": ioc_type,
-                        "value": value,
-                    }
-                )
-
-        return results
+            ioc_type = str(row.get("ioc_type", "")).lower()
+            if "ip" in ioc_type:
+                indicator_type = "ip"
+            elif "domain" in ioc_type:
+                indicator_type = "domain"
+            elif "url" in ioc_type:
+                indicator_type = "url"
+            elif "sha256" in ioc_type or "md5" in ioc_type:
+                indicator_type = "hash"
+            else:
+                continue
+            result.append({"indicator_type": indicator_type, "value": value, "source": self.name})
+        return result

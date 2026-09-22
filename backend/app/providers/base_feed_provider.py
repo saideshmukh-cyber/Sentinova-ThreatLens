@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 
 
 class BaseFeedProvider(ABC):
-    name: str = "unknown"
-    description: str = ""
+    name = "unknown"
+    description = ""
 
     @abstractmethod
     def fetch_indicators(self) -> list[dict]:

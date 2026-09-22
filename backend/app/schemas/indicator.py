@@ -3,240 +3,69 @@ import ipaddress
 import re
 from urllib.parse import urlparse
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.app.models.indicator import IndicatorType
 
 
-class IndicatorCreate(BaseModel):
+class IndicatorInput(BaseModel):
     indicator_type: IndicatorType
-    value: str = Field(
-        min_length=1,
-        max_length=500,
-    )
+    value: str = Field(min_length=1, max_length=500)
 
-    @field_validator(
-        "indicator_type",
-        mode="before",
-    )
+    @field_validator("indicator_type", mode="before")
     @classmethod
-    def normalize_indicator_type(
-        cls,
-        value,
-    ):
-        if isinstance(value, str):
-            return value.strip().lower()
+    def normalize_indicator_type(cls, value):
+        return value.strip().lower() if isinstance(value, str) else value
 
-        return value
-
-    @field_validator(
-        "value",
-        mode="before",
-    )
+    @field_validator("value", mode="before")
     @classmethod
-    def normalize_indicator_value(
-        cls,
-        value,
-    ):
-        if isinstance(value, str):
-            return value.strip().lower()
-
-        return value
-
-    @field_validator("value")
-    @classmethod
-    def validate_value(
-        cls,
-        value: str,
-    ) -> str:
-        value = value.strip()
-
-        if not value:
-            raise ValueError(
-                "Indicator value cannot be empty"
-            )
-
-        return value
+    def normalize_indicator_value(cls, value):
+        return value.strip().lower() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def validate_indicator(self):
-        if self.indicator_type.value == "ip":
+        value = self.value.strip()
+
+        if self.indicator_type == IndicatorType.IP:
             try:
-                ipaddress.ip_address(
-                    self.value
-                )
-            except ValueError:
-                raise ValueError(
-                    "Value is not a valid IP address"
-                )
+                ipaddress.ip_address(value)
+            except ValueError as exc:
+                raise ValueError("Value is not a valid IP address") from exc
 
-        elif self.indicator_type.value == "domain":
-            domain_pattern = (
-                r"^(?=.{1,253}$)"
-                r"([a-zA-Z0-9-]+\.)+"
-                r"[a-zA-Z]{2,}$"
-            )
+        elif self.indicator_type == IndicatorType.DOMAIN:
+            domain_pattern = r"^(?=.{1,253}$)([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
+            if not re.match(domain_pattern, value):
+                raise ValueError("Value is not a valid domain")
 
-            if not re.match(
-                domain_pattern,
-                self.value,
-            ):
-                raise ValueError(
-                    "Value is not a valid domain"
-                )
+        elif self.indicator_type == IndicatorType.URL:
+            parsed = urlparse(value)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                raise ValueError("URL must use HTTP or HTTPS and contain a valid hostname")
 
-        elif self.indicator_type.value == "url":
-            parsed = urlparse(
-                self.value
-            )
+        elif self.indicator_type == IndicatorType.HASH:
+            if len(value) not in {32, 40, 64} or not re.fullmatch(r"[0-9a-fA-F]+", value):
+                raise ValueError("Hash must be a valid MD5, SHA1, or SHA256 hexadecimal value")
 
-            if parsed.scheme not in {
-                "http",
-                "https",
-            }:
-                raise ValueError(
-                    "URL must use HTTP or HTTPS"
-                )
-
-            if not parsed.hostname:
-                raise ValueError(
-                    "URL must contain a valid hostname"
-                )
-
-        elif self.indicator_type.value == "hash":
-            if not re.fullmatch(
-                r"[0-9a-fA-F]+",
-                self.value,
-            ):
-                raise ValueError(
-                    "Hash must contain only hexadecimal characters"
-                )
-
+        self.value = value
         return self
 
 
-class IndicatorUpdate(BaseModel):
-    indicator_type: IndicatorType
-    value: str = Field(
-        min_length=1,
-        max_length=500,
-    )
+class IndicatorCreate(IndicatorInput):
+    pass
 
-    @field_validator(
-        "indicator_type",
-        mode="before",
-    )
-    @classmethod
-    def normalize_indicator_type(
-        cls,
-        value,
-    ):
-        if isinstance(value, str):
-            return value.strip().lower()
 
-        return value
-
-    @field_validator(
-        "value",
-        mode="before",
-    )
-    @classmethod
-    def normalize_indicator_value(
-        cls,
-        value,
-    ):
-        if isinstance(value, str):
-            return value.strip().lower()
-
-        return value
-
-    @field_validator("value")
-    @classmethod
-    def validate_value(
-        cls,
-        value: str,
-    ) -> str:
-        value = value.strip()
-
-        if not value:
-            raise ValueError(
-                "Indicator value cannot be empty"
-            )
-
-        return value
-
-    @model_validator(mode="after")
-    def validate_indicator(self):
-        if self.indicator_type.value == "ip":
-            try:
-                ipaddress.ip_address(
-                    self.value
-                )
-            except ValueError:
-                raise ValueError(
-                    "Value is not a valid IP address"
-                )
-
-        elif self.indicator_type.value == "domain":
-            domain_pattern = (
-                r"^(?=.{1,253}$)"
-                r"([a-zA-Z0-9-]+\.)+"
-                r"[a-zA-Z]{2,}$"
-            )
-
-            if not re.match(
-                domain_pattern,
-                self.value,
-            ):
-                raise ValueError(
-                    "Value is not a valid domain"
-                )
-
-        elif self.indicator_type.value == "url":
-            parsed = urlparse(
-                self.value
-            )
-
-            if parsed.scheme not in {
-                "http",
-                "https",
-            }:
-                raise ValueError(
-                    "URL must use HTTP or HTTPS"
-                )
-
-            if not parsed.hostname:
-                raise ValueError(
-                    "URL must contain a valid hostname"
-                )
-
-        elif self.indicator_type.value == "hash":
-            if not re.fullmatch(
-                r"[0-9a-fA-F]+",
-                self.value,
-            ):
-                raise ValueError(
-                    "Hash must contain only hexadecimal characters"
-                )
-
-        return self
+class IndicatorUpdate(IndicatorInput):
+    pass
 
 
 class IndicatorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     indicator_type: IndicatorType
     value: str
+    severity_score: int
     created_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
 
 
 class IndicatorSearchResponse(BaseModel):

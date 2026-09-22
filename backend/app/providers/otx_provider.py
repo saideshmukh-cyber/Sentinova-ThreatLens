@@ -1,96 +1,36 @@
-import json
-import os
-import urllib.request
-
-from backend.app.providers.base_feed_provider import (
-    BaseFeedProvider,
-)
+import httpx
+from backend.app.providers.base_feed_provider import BaseFeedProvider
 
 
 class OTXProvider(BaseFeedProvider):
     name = "otx"
-    description = "AlienVault Open Threat Exchange."
+    url = "https://otx.alienvault.com/api/v1/pulses/subscribed"
+
+    def __init__(self, api_key: str = ""):
+        self.api_key = api_key
 
     def fetch_indicators(self) -> list[dict]:
-        api_key = os.getenv(
-            "OTX_API_KEY",
-            "",
-        ).strip()
-
-        if not api_key:
+        if not self.api_key:
             return []
-
-        url = (
-            "https://otx.alienvault.com/"
-            "api/v1/pulses/subscribed"
-        )
-
-        request = urllib.request.Request(
-            url,
-            headers={
-                "X-OTX-API-KEY": api_key,
-                "User-Agent": "ThreatLens/1.0",
-            },
-        )
-
-        with urllib.request.urlopen(
-            request,
-            timeout=15,
-        ) as response:
-            payload = json.loads(
-                response.read().decode("utf-8")
-            )
-
-        results = []
-
-        for pulse in payload.get(
-            "results",
-            [],
-        ):
-            for indicator in pulse.get(
-                "indicators",
-                [],
-            ):
-                indicator_type = (
-                    indicator.get("type")
-                )
-
-                value = indicator.get(
-                    "indicator"
-                )
-
+        with httpx.Client(timeout=45.0) as client:
+            response = client.get(self.url, headers={"X-OTX-API-KEY": self.api_key})
+            response.raise_for_status()
+        result = []
+        for pulse in response.json().get("results", []):
+            for indicator in pulse.get("indicators", []):
+                value = str(indicator.get("indicator", "")).strip()
+                kind = str(indicator.get("type", "")).lower()
                 if not value:
                     continue
-
-                mapped_type = None
-
-                if indicator_type in {
-                    "IPv4",
-                    "IPv6",
-                }:
-                    mapped_type = "ip"
-
-                elif indicator_type in {
-                    "domain",
-                    "hostname",
-                }:
-                    mapped_type = "domain"
-
-                elif indicator_type == "URL":
-                    mapped_type = "url"
-
-                elif indicator_type in {
-                    "FileHash-MD5",
-                    "FileHash-SHA256",
-                }:
-                    mapped_type = "hash"
-
-                if mapped_type:
-                    results.append(
-                        {
-                            "indicator_type": mapped_type,
-                            "value": value,
-                        }
-                    )
-
-        return results
+                if "ipv4" in kind or "ipv6" in kind:
+                    indicator_type = "ip"
+                elif "domain" in kind:
+                    indicator_type = "domain"
+                elif "url" in kind:
+                    indicator_type = "url"
+                elif "hash" in kind or "file" in kind:
+                    indicator_type = "hash"
+                else:
+                    continue
+                result.append({"indicator_type": indicator_type, "value": value, "source": self.name})
+        return result
