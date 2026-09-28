@@ -1,4 +1,7 @@
+from datetime import datetime
+
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,6 +11,7 @@ from backend.app.models.enrichment import IndicatorEnrichment
 from backend.app.models.indicator import Indicator
 from backend.app.models.indicator_source import IndicatorSource
 from backend.app.models.investigation import Investigation
+from backend.app.models.relationship import IndicatorRelationship
 from backend.app.schemas.indicator import IndicatorCreate, IndicatorUpdate
 from backend.app.services.elasticsearch_service import (
     delete_indicator as delete_elasticsearch_indicator,
@@ -24,6 +28,17 @@ def normalize_indicator_type(indicator_type):
     return indicator_type
 
 
+def _apply_metadata(indicator: Indicator, data) -> None:
+    indicator.confidence = data.confidence
+    indicator.tlp = data.tlp.value if hasattr(data.tlp, "value") else str(data.tlp)
+    indicator.status = data.status.value if hasattr(data.status, "value") else str(data.status)
+    indicator.tags = data.tags
+    indicator.attack_techniques = data.attack_techniques
+    indicator.notes = data.notes
+    indicator.ttl_days = data.ttl_days
+    indicator.last_seen = datetime.utcnow()
+
+
 def create_indicator(db: Session, indicator_data: IndicatorCreate):
     normalized_type = normalize_indicator_type(indicator_data.indicator_type)
     normalized_value = normalize_indicator(normalized_type, indicator_data.value)
@@ -32,7 +47,10 @@ def create_indicator(db: Session, indicator_data: IndicatorCreate):
         indicator_type=normalized_type,
         value=normalized_value,
         severity_score=0,
+        first_seen=datetime.utcnow(),
+        last_seen=datetime.utcnow(),
     )
+    _apply_metadata(db_indicator, indicator_data)
     db.add(db_indicator)
     try:
         db.commit()
@@ -75,15 +93,19 @@ def list_indicators(db: Session):
 def search_indicators(db: Session, query: str | None, indicator_type, page: int, size: int):
     search_query = db.query(Indicator)
     if indicator_type:
-        search_query = search_query.filter(
-            Indicator.indicator_type == normalize_indicator_type(indicator_type)
-        )
+        search_query = search_query.filter(Indicator.indicator_type == normalize_indicator_type(indicator_type))
     if query:
-        search_query = search_query.filter(Indicator.value.ilike(f"%{query.strip().lower()}%"))
+        term = f"%{query.strip().lower()}%"
+        search_query = search_query.filter(
+            or_(
+                Indicator.value.ilike(term),
+                Indicator.notes.ilike(term),
+            )
+        )
 
     total = search_query.count()
     items = (
-        search_query.order_by(Indicator.created_at.desc())
+        search_query.order_by(Indicator.severity_score.desc(), Indicator.created_at.desc())
         .offset((page - 1) * size)
         .limit(size)
         .all()
@@ -106,6 +128,7 @@ def update_indicator(db: Session, indicator_id: int, indicator_data: IndicatorUp
 
     indicator.indicator_type = normalized_type
     indicator.value = normalized_value
+    _apply_metadata(indicator, indicator_data)
     try:
         db.commit()
         db.refresh(indicator)
@@ -126,17 +149,15 @@ def delete_indicator(db: Session, indicator_id: int):
     if indicator is None:
         return None
 
-    # Delete dependent rows first because the existing schema does not define
-    # database-level ON DELETE CASCADE constraints.
     db.query(Alert).filter(Alert.indicator_id == indicator_id).delete(synchronize_session=False)
-    db.query(IndicatorEnrichment).filter(
-        IndicatorEnrichment.indicator_id == indicator_id
-    ).delete(synchronize_session=False)
-    db.query(IndicatorSource).filter(
-        IndicatorSource.indicator_id == indicator_id
-    ).delete(synchronize_session=False)
-    db.query(Investigation).filter(
-        Investigation.indicator_id == indicator_id
+    db.query(IndicatorEnrichment).filter(IndicatorEnrichment.indicator_id == indicator_id).delete(synchronize_session=False)
+    db.query(IndicatorSource).filter(IndicatorSource.indicator_id == indicator_id).delete(synchronize_session=False)
+    db.query(Investigation).filter(Investigation.indicator_id == indicator_id).delete(synchronize_session=False)
+    db.query(IndicatorRelationship).filter(
+        or_(
+            IndicatorRelationship.source_indicator_id == indicator_id,
+            IndicatorRelationship.target_indicator_id == indicator_id,
+        )
     ).delete(synchronize_session=False)
 
     db.delete(indicator)

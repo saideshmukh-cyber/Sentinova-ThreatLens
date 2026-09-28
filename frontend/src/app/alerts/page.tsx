@@ -48,6 +48,10 @@ function severityLabel(
 }
 
 
+/**
+ * Checks whether an unknown value contains
+ * the minimum fields required for an Alert.
+ */
 function isAlert(
   value: unknown,
 ): value is Alert {
@@ -71,6 +75,107 @@ function isAlert(
 }
 
 
+/**
+ * Extract an Alert from the different WebSocket
+ * message shapes that the backend may send.
+ *
+ * Supported shapes:
+ *
+ * {
+ *   event: "alert.created",
+ *   data: {
+ *     id: 1,
+ *     indicator_id: 2,
+ *     ...
+ *   }
+ * }
+ *
+ * OR
+ *
+ * {
+ *   event: "alert.created",
+ *   data: {
+ *     alert: {
+ *       id: 1,
+ *       indicator_id: 2,
+ *       ...
+ *     }
+ *   }
+ * }
+ *
+ * OR
+ *
+ * {
+ *   event: "alert.created",
+ *   alert: {
+ *     id: 1,
+ *     indicator_id: 2,
+ *     ...
+ *   }
+ * }
+ */
+function extractAlert(
+  message: unknown,
+): Alert | null {
+  if (
+    typeof message !== "object" ||
+    message === null
+  ) {
+    return null;
+  }
+
+  const payload =
+    message as Record<string, unknown>;
+
+  // Case 1:
+  // message.data is already the Alert.
+  if (isAlert(payload.data)) {
+    return payload.data;
+  }
+
+  // Case 2:
+  // message.data.alert contains the Alert.
+  if (
+    typeof payload.data === "object" &&
+    payload.data !== null
+  ) {
+    const data =
+      payload.data as Record<string, unknown>;
+
+    if (isAlert(data.alert)) {
+      return data.alert;
+    }
+  }
+
+  // Case 3:
+  // message.alert contains the Alert.
+  if (isAlert(payload.alert)) {
+    return payload.alert;
+  }
+
+  return null;
+}
+
+
+function getWebSocketEvent(
+  message: unknown,
+): string | undefined {
+  if (
+    typeof message !== "object" ||
+    message === null
+  ) {
+    return undefined;
+  }
+
+  const payload =
+    message as Record<string, unknown>;
+
+  return typeof payload.event === "string"
+    ? payload.event
+    : undefined;
+}
+
+
 export default function AlertsPage() {
   const [alerts, setAlerts] =
     useState<Alert[]>([]);
@@ -91,6 +196,9 @@ export default function AlertsPage() {
     useState<Alert | null>(null);
 
 
+  /*
+   * Load existing alerts from the REST API.
+   */
   useEffect(() => {
     let cancelled = false;
 
@@ -130,24 +238,48 @@ export default function AlertsPage() {
   }, []);
 
 
+  /*
+   * Connect to the alert WebSocket.
+   *
+   * The previous version assumed that every message
+   * stored the Alert directly in message.data.
+   *
+   * This version extracts the Alert safely from:
+   *
+   *   message.data
+   *   message.data.alert
+   *   message.alert
+   */
   useEffect(() => {
     const socket =
       connectAlertWebSocket(
         (message) => {
           const alertData =
-            message.data;
+            extractAlert(message);
 
-          if (!isAlert(alertData)) {
-            console.error(
-              "Invalid alert received from WebSocket:",
+          /*
+           * Ignore messages that are not alert
+           * events instead of treating them as
+           * application errors.
+           */
+          if (!alertData) {
+            console.debug(
+              "Ignoring non-alert WebSocket message:",
               message,
             );
+
             return;
           }
 
+          const event =
+            getWebSocketEvent(message);
+
+
+          /*
+           * New alert.
+           */
           if (
-            message.event ===
-            "alert.created"
+            event === "alert.created"
           ) {
             setAlerts((current) => {
               const alreadyExists =
@@ -174,9 +306,12 @@ export default function AlertsPage() {
             return;
           }
 
+
+          /*
+           * Updated alert.
+           */
           if (
-            message.event ===
-            "alert.updated"
+            event === "alert.updated"
           ) {
             setAlerts((current) =>
               current.map((alert) =>
@@ -185,10 +320,28 @@ export default function AlertsPage() {
                   : alert,
               ),
             );
+
+            return;
           }
+
+
+          /*
+           * If the backend sends a valid Alert
+           * without an event name, do not throw an
+           * error. We simply log it for debugging.
+           */
+          console.debug(
+            "Received valid alert with unknown WebSocket event:",
+            {
+              event,
+              alert: alertData,
+            },
+          );
         },
+
         setRealtimeConnected,
       );
+
 
     return () => {
       socket.close();
@@ -260,12 +413,14 @@ export default function AlertsPage() {
 
   return (
     <main className="p-8">
+
       <RealtimeAlertToast
         alert={realtimeAlert}
         onClose={() =>
           setRealtimeAlert(null)
         }
       />
+
 
       <div className="mb-8 flex items-center justify-between">
         <div>
@@ -302,8 +457,10 @@ export default function AlertsPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
           <table className="w-full text-left">
+
             <thead className="border-b border-slate-800 bg-slate-950">
               <tr>
+
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   ID
                 </th>
@@ -335,8 +492,10 @@ export default function AlertsPage() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Incident
                 </th>
+
               </tr>
             </thead>
+
 
             <tbody>
               {alerts.map((alert) => (
@@ -344,17 +503,21 @@ export default function AlertsPage() {
                   key={alert.id}
                   className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800/40"
                 >
+
                   <td className="px-4 py-4 text-sm text-slate-300">
                     #{alert.id}
                   </td>
+
 
                   <td className="px-4 py-4 text-sm text-slate-300">
                     Indicator #{alert.indicator_id}
                   </td>
 
+
                   <td className="px-4 py-4 text-sm font-semibold text-white">
                     {alert.severity_score}
                   </td>
+
 
                   <td className="px-4 py-4 text-sm text-slate-300">
                     {severityLabel(
@@ -362,9 +525,11 @@ export default function AlertsPage() {
                     )}
                   </td>
 
+
                   <td className="px-4 py-4 text-sm text-slate-300">
                     {alert.rule}
                   </td>
+
 
                   <td className="px-4 py-4">
                     <select
@@ -395,22 +560,27 @@ export default function AlertsPage() {
                     </select>
                   </td>
 
+
                   <td className="px-4 py-4 text-sm text-slate-300">
                     {alert.assignee ??
                       "Unassigned"}
                   </td>
+
 
                   <td className="px-4 py-4 text-sm text-slate-300">
                     {alert.incident_id
                       ? `#${alert.incident_id}`
                       : "Not linked"}
                   </td>
+
                 </tr>
               ))}
             </tbody>
+
           </table>
         </div>
       )}
+
     </main>
   );
 }

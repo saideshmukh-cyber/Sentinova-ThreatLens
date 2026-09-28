@@ -1,137 +1,68 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getAlerts } from "@/lib/api";
-import { DonutLegend, Heatmap, LinkButton, MetricCard, MiniBars, Panel, PanelHeader, SeverityBadge } from "@/components/DashboardPrimitives";
+import { getAlerts, getDashboardAnalytics, getDashboardLayout, getDashboardSummary, saveDashboardLayout } from "@/lib/api";
+import type { DashboardAnalytics } from "@/types/dashboard";
+import { DonutLegend, GeoHeatmap, LinkButton, MetricCard, Panel, PanelHeader, ScoreRing, SeverityBadge, SeverityDistribution, TechniqueBreakdown, TrendChart, WidgetToggle } from "@/components/DashboardPrimitives";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+ type Summary = { total_indicators:number; total_investigations:number; high_risk_investigations:number; total_alerts:number; open_alerts:number; total_incidents:number; open_incidents:number; total_security_events:number; indicator_distribution:Record<string,number> };
 
-type DashboardSummary = {
-  total_indicators: number;
-  total_investigations: number;
-  high_risk_investigations: number;
-  total_alerts: number;
-  open_alerts: number;
-  total_incidents: number;
-  open_incidents: number;
-  total_security_events: number;
-  indicator_distribution: { ip: number; domain: number; url: number; hash: number };
-  recent_alerts: Array<{ id: number; indicator_id: number; severity_score: number; rule: string; status: string; assignee: string | null; created_at: string }>;
-};
+const widgets = [
+  { id: "risk", label: "Risk posture" },
+  { id: "trends", label: "Trends" },
+  { id: "map", label: "Global activity" },
+  { id: "sources", label: "Top sources" },
+  { id: "severity", label: "Severity" },
+  { id: "techniques", label: "ATT&CK" },
+  { id: "queue", label: "Priority queue" },
+];
 
-type Alert = Awaited<ReturnType<typeof getAlerts>>[number];
+const defaultVisible = Object.fromEntries(widgets.map((widget) => [widget.id, true]));
 
 export default function Home() {
-  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState<Record<string, boolean>>(defaultVisible);
+  const [alerts, setAlerts] = useState<Awaited<ReturnType<typeof getAlerts>>>([]);
 
   useEffect(() => {
-    let active = true;
+    let alive = true;
     async function load() {
       try {
-        const [summaryResponse, alertData] = await Promise.all([
-          fetch(`${API_URL}/api/v1/dashboard/summary`),
-          getAlerts(),
-        ]);
-        if (!summaryResponse.ok) throw new Error(`Failed to load dashboard: ${summaryResponse.status}`);
-        const summary = (await summaryResponse.json()) as DashboardSummary;
-        if (!active) return;
-        setDashboard(summary);
-        setAlerts(alertData);
-        setError(null);
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load dashboard.");
+        const [s, a, al, layout] = await Promise.all([getDashboardSummary<Summary>(), getDashboardAnalytics(), getAlerts(), getDashboardLayout()]);
+        if (!alive) return;
+        const stored = Object.keys(layout.visible ?? {}).length ? layout.visible : (() => { try { return JSON.parse(localStorage.getItem("threatlens_widget_layout") || "{}"); } catch { return {}; } })();
+        setSummary(s);
+        setAnalytics(a);
+        setAlerts(al);
+        setVisible({ ...defaultVisible, ...stored });
       } finally {
-        if (active) setLoading(false);
+        if (alive) setLoading(false);
       }
     }
     void load();
-    return () => { active = false; };
+    return () => { alive = false; };
   }, []);
 
-  const averageScore = useMemo(() => {
-    if (alerts.length === 0) return 0;
-    return Math.round(alerts.reduce((sum, alert) => sum + alert.severity_score, 0) / alerts.length);
-  }, [alerts]);
+  const avg = useMemo(() => alerts.length ? Math.round(alerts.reduce((n, a) => n + a.severity_score, 0) / alerts.length) : 0, [alerts]);
 
-  if (loading) return <div className="p-6 lg:p-8"><div className="h-6 w-56 animate-pulse rounded bg-slate-800" /><div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-900" />)}</div></div>;
-  if (error || !dashboard) return <div className="p-6 lg:p-8"><div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 text-sm text-rose-300">{error ?? "Dashboard data unavailable."}</div></div>;
+  async function toggle(id: string) {
+    const next = { ...visible, [id]: !visible[id] };
+    setVisible(next);
+    try { localStorage.setItem("threatlens_widget_layout", JSON.stringify(next)); } catch {}
+    try { await saveDashboardLayout(next); } catch {}
+  }
 
-  const distribution = dashboard.indicator_distribution;
+  if (loading || !summary || !analytics) return <div className="p-6 lg:p-8"><div className="h-5 w-64 animate-pulse rounded bg-slate-800"/><div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({length:4},(_,i)=><div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-900"/>)}</div></div>;
 
-  return (
-    <div className="p-5 sm:p-6 lg:p-8">
-      <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">Operational snapshot</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">ThreatLens Command Center</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">A shared SOC workspace for indicators, alerts, incidents, correlation and live threat activity.</p>
-        </div>
-        <div className="flex gap-2"><LinkButton href="/dashboards/soc-analyst">Open analyst workspace</LinkButton><LinkButton href="/indicators">Search intelligence</LinkButton></div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Indicators" value={dashboard.total_indicators} detail="Canonical IOC records" tone="accent" />
-        <MetricCard label="Open Alerts" value={dashboard.open_alerts} detail={`${dashboard.total_alerts.toLocaleString()} total alerts`} tone="danger" />
-        <MetricCard label="Open Incidents" value={dashboard.open_incidents} detail={`${dashboard.total_incidents.toLocaleString()} total incidents`} />
-        <MetricCard label="Avg Alert Score" value={averageScore} detail="Current alert population" />
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_0.9fr_0.9fr]">
-        <Panel>
-          <PanelHeader title="Threat activity" subtitle="Live operational signal overview" />
-          <div className="p-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300">Security events</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{dashboard.total_security_events.toLocaleString()}</div>
-                <div className="mt-1 text-xs text-slate-500">Received by the correlation layer</div>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Investigations</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{dashboard.total_investigations.toLocaleString()}</div>
-                <div className="mt-1 text-xs text-slate-500">{dashboard.high_risk_investigations.toLocaleString()} high-risk investigations</div>
-              </div>
-            </div>
-            <div className="mt-5"><MiniBars values={[28, 44, 38, 61, 52, 74, 63, 82, 69, 88, 78, 94]} /></div>
-          </div>
-        </Panel>
-
-        <Panel>
-          <PanelHeader title="Indicator mix" subtitle="Current normalized corpus" />
-          <div className="p-5"><DonutLegend rows={[{ label: "IP", value: distribution.ip, className: "bg-cyan-400" }, { label: "Domain", value: distribution.domain, className: "bg-sky-400" }, { label: "URL", value: distribution.url, className: "bg-violet-400" }, { label: "Hash", value: distribution.hash, className: "bg-amber-400" }]} /></div>
-        </Panel>
-
-        <Panel>
-          <PanelHeader title="Global activity" subtitle="Threat density visualization" />
-          <div className="p-5"><Heatmap /></div>
-        </Panel>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Panel>
-          <PanelHeader title="Priority alert queue" subtitle="Most recent alerts requiring analyst attention" action={<LinkButton href="/alerts">View all</LinkButton>} />
-          <div className="divide-y divide-slate-800/80">
-            {dashboard.recent_alerts.length === 0 ? <div className="p-6 text-sm text-slate-500">No alerts available.</div> : dashboard.recent_alerts.slice(0, 6).map((alert) => {
-              const severity = alert.severity_score >= 90 ? "critical" : alert.severity_score >= 70 ? "high" : alert.severity_score >= 40 ? "medium" : "low";
-              return <div key={alert.id} className="flex items-center gap-4 px-5 py-4"><SeverityBadge severity={severity} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-slate-200">{alert.rule}</div><div className="mt-1 text-xs text-slate-500">Indicator #{alert.indicator_id} · {alert.assignee ?? "Unassigned"}</div></div><div className="text-right"><div className="text-sm font-semibold text-white">{alert.severity_score}</div><div className="mt-1 text-[10px] uppercase tracking-wider text-slate-600">{alert.status}</div></div></div>;
-            })}
-          </div>
-        </Panel>
-
-        <Panel>
-          <PanelHeader title="Coverage posture" subtitle="Operational counts from the current backend" />
-          <div className="grid grid-cols-2 gap-3 p-5">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">URLs</div><div className="mt-2 text-xl font-semibold text-white">{distribution.url.toLocaleString()}</div></div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">Hashes</div><div className="mt-2 text-xl font-semibold text-white">{distribution.hash.toLocaleString()}</div></div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">High-risk investigations</div><div className="mt-2 text-xl font-semibold text-white">{dashboard.high_risk_investigations.toLocaleString()}</div></div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="text-xs text-slate-500">Open alerts</div><div className="mt-2 text-xl font-semibold text-white">{dashboard.open_alerts.toLocaleString()}</div></div>
-          </div>
-        </Panel>
-      </div>
-    </div>
-  );
+  return <div className="p-5 sm:p-6 lg:p-8">
+    <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><div className="text-[10px] font-semibold uppercase tracking-[.2em] text-cyan-400">Mission control</div><h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">ThreatLens Command Center</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Unified CTI posture across intelligence, enrichment, alerts, correlation and incident response.</p></div><div className="flex flex-wrap gap-2"><LinkButton href="/dashboards/executive">Executive</LinkButton><LinkButton href="/dashboards/soc-analyst">Analyst workspace</LinkButton><a href="http://localhost:8000/api/v1/reports/executive.pdf" target="_blank" rel="noreferrer" className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-200">PDF report</a></div></div>
+    <div className="mb-5 rounded-2xl border border-slate-800 bg-[#0a1520]/75 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><div className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-600">Workspace layout</div><div className="mt-1 text-xs text-slate-500">Widget visibility is saved for the active user when authentication is enabled.</div></div><WidgetToggle labels={widgets} visible={visible} onToggle={(id) => void toggle(id)}/></div></div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"><MetricCard label="Risk score" value={analytics.risk_score} detail="Current top-50 indicator posture" tone="accent"/><MetricCard label="Indicators" value={summary.total_indicators} detail="Normalized intelligence corpus"/><MetricCard label="Critical / high" value={analytics.active_critical_high} detail="Score ≥ 70" tone="danger"/><MetricCard label="Open alerts" value={summary.open_alerts} detail={`${summary.total_alerts.toLocaleString()} total`} tone="danger"/><MetricCard label="Open incidents" value={summary.open_incidents} detail={`${summary.total_incidents.toLocaleString()} total`}/></div>
+    <div className="mt-4 grid gap-4 xl:grid-cols-[.72fr_1.28fr]">{visible.risk && <Panel><PanelHeader title="Risk posture" subtitle="Transparent severity model"/><div className="flex items-center justify-center p-8"><ScoreRing score={analytics.risk_score}/></div><div className="grid grid-cols-2 gap-3 px-5 pb-5"><MetricCard label="Avg alert score" value={avg} detail="Current alert queue"/><MetricCard label="High-risk investigations" value={analytics.high_risk_investigations}/></div></Panel>}{visible.trends && <Panel><PanelHeader title="30-day activity" subtitle="Indicators and internal security events"/><div className="p-5"><TrendChart values={analytics.volume_trend.map(x=>x.indicators)} secondary={analytics.volume_trend.map(x=>x.events)} labels={analytics.volume_trend.map(x=>x.date)}/></div></Panel>}</div>
+    <div className="mt-4 grid gap-4 xl:grid-cols-2">{visible.map && <Panel><PanelHeader title="Global threat activity" subtitle="Geographic activity from enrichment telemetry"/><div className="p-4"><GeoHeatmap points={analytics.geo_activity}/></div></Panel>}{visible.sources && <Panel><PanelHeader title="Threat source concentration" subtitle="Provenance represented in the indicator corpus"/><div className="p-5"><DonutLegend rows={analytics.source_breakdown.slice(0,6).map((r,i)=>({label:r.label,value:r.value,className:["bg-cyan-400","bg-sky-400","bg-violet-400","bg-amber-400","bg-emerald-400","bg-rose-400"][i%6]}))}/></div></Panel>}</div>
+    <div className="mt-4 grid gap-4 xl:grid-cols-3">{visible.severity && <Panel><PanelHeader title="Severity distribution"/><div className="p-5"><SeverityDistribution values={analytics.severity_distribution}/></div></Panel>}{visible.techniques && <Panel><PanelHeader title="ATT&amp;CK technique coverage" subtitle="Mapped techniques across indicators"/><div className="p-5"><TechniqueBreakdown rows={analytics.attack_technique_breakdown}/></div></Panel>}{visible.queue && <Panel><PanelHeader title="Priority queue" subtitle="Highest-score alerts" action={<LinkButton href="/alerts">Open alerts</LinkButton>}/><div className="divide-y divide-slate-800/80">{alerts.slice().sort((a,b)=>b.severity_score-a.severity_score).slice(0,7).map(alert=><Link key={alert.id} href={`/alerts`} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-950/40"><SeverityBadge severity={alert.severity_score>=90?"critical":alert.severity_score>=70?"high":alert.severity_score>=40?"medium":"low"}/><span className="min-w-0 flex-1 text-xs text-slate-300">Alert #{alert.id} · IOC #{alert.indicator_id}</span><span className="font-mono text-xs font-semibold text-white">{alert.severity_score}</span></Link>)}</div></Panel>}</div>
+  </div>;
 }

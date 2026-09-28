@@ -25,6 +25,12 @@ const monitoringLinks = [
   { name: "Incidents", href: "/incidents" },
 ];
 
+const governanceLinks = [
+  { name: "Audit Log", href: "/audit" },
+  { name: "Reports", href: "/reports" },
+  { name: "Users & Roles", href: "/users" },
+];
+
 function GridIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -109,6 +115,7 @@ export default function Sidebar() {
           <LinkSection title="Dashboards" items={dashboardLinks} />
           <LinkSection title="Intelligence" items={intelligenceLinks} />
           <LinkSection title="Monitoring" items={monitoringLinks} />
+          <LinkSection title="Governance" items={governanceLinks} />
         </nav>
 
         <div className="border-t border-slate-800/80 p-4">

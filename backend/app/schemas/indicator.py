@@ -1,16 +1,24 @@
 from datetime import datetime
+import email.utils
 import ipaddress
 import re
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from backend.app.models.indicator import IndicatorType
+from backend.app.models.indicator import IndicatorStatus, IndicatorType, TLP
 
 
 class IndicatorInput(BaseModel):
     indicator_type: IndicatorType
     value: str = Field(min_length=1, max_length=500)
+    confidence: int = Field(default=0, ge=0, le=100)
+    tlp: TLP = TLP.CLEAR
+    status: IndicatorStatus = IndicatorStatus.ACTIVE
+    tags: list[str] = Field(default_factory=list, max_length=50)
+    attack_techniques: list[str] = Field(default_factory=list, max_length=50)
+    notes: str | None = Field(default=None, max_length=5000)
+    ttl_days: int | None = Field(default=30, ge=1, le=3650)
 
     @field_validator("indicator_type", mode="before")
     @classmethod
@@ -21,6 +29,18 @@ class IndicatorInput(BaseModel):
     @classmethod
     def normalize_indicator_value(cls, value):
         return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("tags", "attack_techniques")
+    @classmethod
+    def normalize_lists(cls, value: list[str]):
+        seen = set()
+        cleaned = []
+        for item in value:
+            item = item.strip()
+            if item and item.lower() not in seen:
+                seen.add(item.lower())
+                cleaned.append(item)
+        return cleaned
 
     @model_validator(mode="after")
     def validate_indicator(self):
@@ -46,6 +66,15 @@ class IndicatorInput(BaseModel):
             if len(value) not in {32, 40, 64} or not re.fullmatch(r"[0-9a-fA-F]+", value):
                 raise ValueError("Hash must be a valid MD5, SHA1, or SHA256 hexadecimal value")
 
+        elif self.indicator_type == IndicatorType.EMAIL:
+            parsed = email.utils.parseaddr(value)
+            if not parsed[1] or "@" not in parsed[1]:
+                raise ValueError("Value is not a valid email address")
+
+        elif self.indicator_type == IndicatorType.CVE:
+            if not re.fullmatch(r"cve-\d{4}-\d{4,7}", value, re.IGNORECASE):
+                raise ValueError("CVE must match CVE-YYYY-NNNN")
+
         self.value = value
         return self
 
@@ -65,7 +94,17 @@ class IndicatorResponse(BaseModel):
     indicator_type: IndicatorType
     value: str
     severity_score: int
+    confidence: int
+    tlp: TLP | str
+    status: IndicatorStatus | str
+    tags: list[str]
+    attack_techniques: list[str]
+    notes: str | None
+    first_seen: datetime
+    last_seen: datetime
     created_at: datetime
+    updated_at: datetime
+    ttl_days: int | None
 
 
 class IndicatorSearchResponse(BaseModel):

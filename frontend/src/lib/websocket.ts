@@ -10,43 +10,24 @@ export type AlertWebSocketMessage = {
 };
 
 export function connectAlertWebSocket(
-  onMessage: (
-    message: AlertWebSocketMessage,
-  ) => void,
-  onStatusChange?: (
-    connected: boolean,
-  ) => void,
+  onMessage: (message: AlertWebSocketMessage) => void,
+  onStatusChange?: (connected: boolean) => void,
 ) {
-  const socket = new WebSocket(
-    "ws://127.0.0.1:8000/ws/alerts",
-  );
+  const token = typeof window !== "undefined"
+    ? window.localStorage.getItem("threatlens_access_token")
+    : null;
+  const query = token ? `?token=${encodeURIComponent(token)}` : "";
+  const socket = new WebSocket(`ws://127.0.0.1:8000/ws/alerts${query}`);
 
-  socket.onopen = () => {
-    onStatusChange?.(true);
-  };
-
+  socket.onopen = () => onStatusChange?.(true);
   socket.onmessage = (event) => {
     try {
-      const message = JSON.parse(
-        event.data,
-      );
-
-      onMessage(message);
+      onMessage(JSON.parse(event.data) as AlertWebSocketMessage);
     } catch {
-      console.error(
-        "Invalid WebSocket message:",
-        event.data,
-      );
+      console.error("Invalid WebSocket message:", event.data);
     }
   };
-
-  socket.onerror = () => {
-    onStatusChange?.(false);
-  };
-
-  socket.onclose = () => {
-    onStatusChange?.(false);
-  };
-
+  socket.onerror = () => onStatusChange?.(false);
+  socket.onclose = () => onStatusChange?.(false);
   return socket;
 }

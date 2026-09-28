@@ -1,509 +1,58 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  enrichIndicator,
-  getIndicator,
-  getIndicatorEnrichments,
-} from "@/lib/api";
-
-import type {
-  Enrichment,
-} from "@/types/enrichment";
-
-import type {
-  Indicator,
-} from "@/types/indicator";
-
-type PageProps = {
-  params: Promise<{
-    id: string;
-  }>;
-};
-
-function formatDate(
-  value: string,
-): string {
-  return new Date(
-    value,
-  ).toLocaleString();
-}
-
-function formatSource(
-  source: string,
-): string {
-  return source
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase(),
-    );
-}
-
-function groupEnrichments(
-  enrichments: Enrichment[],
-): Record<string, Enrichment[]> {
-  return enrichments.reduce(
-    (
-      groups,
-      enrichment,
-    ) => {
-      if (!groups[enrichment.source]) {
-        groups[enrichment.source] = [];
-      }
-
-      groups[enrichment.source].push(
-        enrichment,
-      );
-
-      return groups;
-    },
-    {} as Record<string, Enrichment[]>,
-  );
-}
-
-function EnrichmentResult({
-  enrichment,
-}: {
-  enrichment: Enrichment;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/50">
-      <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="font-semibold text-white">
-            {formatSource(
-              enrichment.source,
-            )}
-          </h3>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Updated{" "}
-            {formatDate(
-              enrichment.created_at,
-            )}
-          </p>
-        </div>
-
-        <span className="w-fit rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400">
-          {enrichment.source}
-        </span>
-      </div>
-
-      <div className="p-5">
-        <pre className="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-6 text-slate-300">
-          {JSON.stringify(
-            enrichment.data,
-            null,
-            2,
-          )}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function EnrichmentSection({
-  source,
-  enrichments,
-}: {
-  source: string;
-  enrichments: Enrichment[];
-}) {
-  const sorted =
-    [...enrichments].sort(
-      (a, b) =>
-        new Date(
-          b.created_at,
-        ).getTime() -
-        new Date(
-          a.created_at,
-        ).getTime(),
-    );
-
-  const latest =
-    sorted[0];
-
-  const history =
-    sorted.slice(1);
-
-  return (
-    <div className="space-y-4">
-      <EnrichmentResult
-        enrichment={latest}
-      />
-
-      {history.length > 0 && (
-        <details className="rounded-lg border border-slate-800 bg-slate-950/30">
-          <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-400 hover:text-white">
-            View history (
-            {history.length} previous{" "}
-            {source} result
-            {history.length === 1
-              ? ""
-              : "s"}
-            )
-          </summary>
-
-          <div className="space-y-4 border-t border-slate-800 p-4">
-            {history.map(
-              (enrichment) => (
-                <EnrichmentResult
-                  key={
-                    enrichment.id
-                  }
-                  enrichment={
-                    enrichment
-                  }
-                />
-              ),
-            )}
-          </div>
-        </details>
-      )}
-    </div>
-  );
-}
-
-export default function IndicatorDetailPage({
-  params,
-}: PageProps) {
-  const [indicator, setIndicator] =
-    useState<Indicator | null>(
-      null,
-    );
-
-  const [enrichments, setEnrichments] =
-    useState<Enrichment[]>(
-      [],
-    );
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [enriching, setEnriching] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [enrichmentError, setEnrichmentError] =
-    useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadData() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const { id } =
-          await params;
-
-        const indicatorId =
-          Number(id);
-
-        if (
-          !Number.isInteger(
-            indicatorId,
-          ) ||
-          indicatorId <= 0
-        ) {
-          throw new Error(
-            "Invalid indicator ID.",
-          );
-        }
-
-        const [
-          indicatorData,
-          enrichmentData,
-        ] = await Promise.all([
-          getIndicator(
-            indicatorId,
-          ),
-          getIndicatorEnrichments(
-            indicatorId,
-          ),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setIndicator(
-          indicatorData,
-        );
-
-        setEnrichments(
-          enrichmentData,
-        );
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load indicator.",
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params]);
-
-  async function handleEnrich() {
-    if (!indicator) {
-      return;
-    }
-
-    setEnriching(true);
-    setEnrichmentError("");
-
-    try {
-      const updated =
-        await enrichIndicator(
-          indicator.id,
-          indicator.indicator_type,
-        );
-
-      setEnrichments((current) => [
-        updated,
-        ...current,
-      ]);
-    } catch (err) {
-      setEnrichmentError(
-        err instanceof Error
-          ? err.message
-          : "Failed to enrich indicator.",
-      );
-    } finally {
-      setEnriching(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <main className="p-8">
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-          Loading indicator...
-        </div>
-      </main>
-    );
-  }
-
-  if (error || !indicator) {
-    return (
-      <main className="p-8">
-        <Link
-          href="/indicators"
-          className="text-sm text-slate-400 hover:text-white"
-        >
-          ← Back to Indicators
-        </Link>
-
-        <div className="mt-6 rounded-xl border border-red-900/50 bg-red-950/20 p-6 text-red-300">
-          {error ||
-            "Indicator not found."}
-        </div>
-      </main>
-    );
-  }
-
-  const grouped =
-    groupEnrichments(
-      enrichments,
-    );
-
-  const sources =
-    Object.keys(grouped);
-
-  return (
-    <main className="space-y-6 p-8">
-      <div>
-        <Link
-          href="/indicators"
-          className="text-sm text-slate-400 hover:text-white"
-        >
-          ← Back to Indicators
-        </Link>
-
-        <div className="mt-4">
-          <p className="text-sm text-slate-500">
-            Indicator
-          </p>
-
-          <h1 className="mt-1 break-all text-2xl font-bold text-white">
-            {indicator.value}
-          </h1>
-        </div>
-      </div>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">
-              Indicator Details
-            </h2>
-
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  ID
-                </p>
-
-                <p className="mt-1 text-sm text-slate-200">
-                  {indicator.id}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Type
-                </p>
-
-                <span className="mt-1 inline-block rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                  {indicator.indicator_type}
-                </span>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Value
-                </p>
-
-                <p className="mt-1 break-all font-mono text-sm text-slate-200">
-                  {indicator.value}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Created
-                </p>
-
-                <p className="mt-1 text-sm text-slate-200">
-                  {formatDate(
-                    indicator.created_at,
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleEnrich}
-              disabled={enriching}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {enriching
-                ? "Enriching..."
-                : "Enrich Indicator"}
-            </button>
-
-            <button
-              type="button"
-              disabled
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-500"
-            >
-              Investigate
-            </button>
-
-            <button
-              type="button"
-              disabled
-              className="rounded-lg border border-red-900 px-4 py-2 text-sm text-red-400 opacity-60"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-
-        {enrichmentError && (
-          <div className="mt-5 rounded-lg border border-red-900/50 bg-red-950/20 px-4 py-3 text-sm text-red-300">
-            {enrichmentError}
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">
-              Enrichment
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Latest results from ThreatLens enrichment providers.
-            </p>
-          </div>
-
-          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400">
-            {sources.length}{" "}
-            {sources.length === 1
-              ? "source"
-              : "sources"}
-          </span>
-        </div>
-
-        <div className="mt-6 space-y-6">
-          {sources.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-700 px-6 py-10 text-center">
-              <p className="text-sm text-slate-400">
-                No enrichment results yet.
-              </p>
-
-              <p className="mt-2 text-xs text-slate-600">
-                Click Enrich Indicator to run an enrichment provider.
-              </p>
-            </div>
-          ) : (
-            sources.map(
-              (source) => (
-                <EnrichmentSection
-                  key={source}
-                  source={source}
-                  enrichments={
-                    grouped[source]
-                  }
-                />
-              ),
-            )
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <h2 className="text-lg font-semibold text-white">
-          Investigation
-        </h2>
-
-        <div className="mt-4 rounded-lg border border-dashed border-slate-700 px-6 py-10 text-center">
-          <p className="text-sm text-slate-400">
-            Investigation workflow will appear here.
-          </p>
-
-          <p className="mt-2 text-xs text-slate-600">
-            This will be connected in the Investigation phase.
-          </p>
-        </div>
-      </section>
-    </main>
-  );
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { deleteIndicator, enrichIndicator, getIndicator, getIndicatorEnrichments, getIndicatorSources, getRelationships, scoreIndicator, updateIndicator } from "@/lib/api";
+import type { Enrichment } from "@/types/enrichment";
+import type { Indicator, IndicatorStatus, IndicatorType, TLP } from "@/types/indicator";
+import { LinkButton, MetricCard, Panel, PanelHeader, ScoreRing, SeverityBadge } from "@/components/DashboardPrimitives";
+
+type PageProps = { params: Promise<{ id: string }> };
+type Relation = { id:number; source_indicator_id:number; target_indicator_id:number; relationship_type:string; created_at:string; source_value?:string|null; target_value?:string|null; source_type?:string|null; target_type?:string|null };
+type Source = { id:number; indicator_id:number; source:string; confidence:number; first_seen:string; last_seen:string };
+
+function severity(score:number){return score>=90?"critical":score>=70?"high":score>=40?"medium":"low" as const}
+function formatDate(value:string){return new Date(value).toLocaleString()}
+
+export default function IndicatorDetailPage({params}:PageProps){
+  const router=useRouter();
+  const [indicator,setIndicator]=useState<Indicator|null>(null);
+  const [enrichments,setEnrichments]=useState<Enrichment[]>([]);
+  const [sources,setSources]=useState<Source[]>([]);
+  const [relationships,setRelationships]=useState<Relation[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState("");
+  const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [editing,setEditing]=useState(false);
+  const [confidence,setConfidence]=useState(0);
+  const [tlp,setTlp]=useState<TLP>("clear");
+  const [status,setStatus]=useState<IndicatorStatus>("active");
+  const [tags,setTags]=useState("");
+  const [attack,setAttack]=useState("");
+  const [notes,setNotes]=useState("");
+  const [ttlDays,setTtlDays]=useState(30);
+
+  useEffect(()=>{let alive=true;async function load(){try{const {id}=await params;const indicatorId=Number(id);if(!Number.isInteger(indicatorId)||indicatorId<=0)throw new Error("Invalid indicator ID.");const [i,e,s,r]=await Promise.all([getIndicator(indicatorId),getIndicatorEnrichments(indicatorId),getIndicatorSources(indicatorId),getRelationships(indicatorId)]);if(!alive)return;setIndicator(i);setEnrichments(e);setSources(s);setRelationships(r);setConfidence(i.confidence);setTlp((i.tlp as TLP)||"clear");setStatus((i.status as IndicatorStatus)||"active");setTags(i.tags.join(", "));setAttack(i.attack_techniques.join(", "));setNotes(i.notes??"");setTtlDays(i.ttl_days??30);}catch(err){if(alive)setError(err instanceof Error?err.message:"Failed to load indicator.");}finally{if(alive)setLoading(false)}}void load();return()=>{alive=false}},[params]);
+
+  async function handleEnrich(){if(!indicator)return;setBusy("enrich");setError("");setNotice("");try{const updated=await enrichIndicator(indicator.id,indicator.indicator_type);setEnrichments(current=>[updated,...current]);setNotice("Enrichment completed.");}catch(err){setError(err instanceof Error?err.message:"Enrichment failed.");}finally{setBusy("")}}
+  async function handleScore(){if(!indicator)return;setBusy("score");setError("");try{const result=await scoreIndicator(indicator.id);setIndicator(current=>current?{...current,severity_score:result.severity_score,updated_at:new Date().toISOString()}:current);setNotice(`Severity score updated to ${result.severity_score}.`)}catch(err){setError(err instanceof Error?err.message:"Scoring failed.");}finally{setBusy("")}}
+  async function handleSave(){if(!indicator)return;setBusy("save");setError("");setNotice("");try{const updated=await updateIndicator(indicator.id,{indicator_type:indicator.indicator_type,value:indicator.value,confidence,tlp,status,tags:tags.split(",").map(v=>v.trim()).filter(Boolean),attack_techniques:attack.split(",").map(v=>v.trim()).filter(Boolean),notes:notes.trim()||null,ttl_days:ttlDays});setIndicator(updated);setEditing(false);setNotice("Indicator metadata updated.");}catch(err){setError(err instanceof Error?err.message:"Update failed.");}finally{setBusy("")}}
+  async function handleDelete(){if(!indicator)return;if(!window.confirm(`Delete ${indicator.value}? This removes dependent alerts, enrichments, provenance and relationships.`))return;setBusy("delete");setError("");try{await deleteIndicator(indicator.id);router.replace("/indicators");}catch(err){setError(err instanceof Error?err.message:"Delete failed.");setBusy("")}}
+
+  if(loading)return <div className="p-8"><div className="h-40 animate-pulse rounded-2xl bg-slate-900"/></div>;
+  if(error&&!indicator)return <div className="p-8"><Link href="/indicators" className="text-sm text-slate-400">← Back to indicators</Link><div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6 text-sm text-rose-300">{error}</div></div>;
+  if(!indicator)return null;
+
+  const grouped: Record<string, Enrichment[]> = {};
+  for (const item of enrichments) { (grouped[item.source] ??= []).push(item); }
+  return <div className="p-5 sm:p-6 lg:p-8">
+    <div className="mb-6"><Link href="/indicators" className="text-sm text-slate-500 hover:text-white">← Back to indicators</Link><div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><div className="flex items-center gap-2"><SeverityBadge severity={severity(indicator.severity_score)} label={`${indicator.severity_score} severity`}/><SeverityBadge severity="info" label={indicator.indicator_type}/><span className="text-[10px] uppercase tracking-wider text-slate-600">IOC #{indicator.id}</span></div><h1 className="mt-3 break-all font-mono text-2xl font-semibold text-white">{indicator.value}</h1><p className="mt-2 text-sm text-slate-500">Last seen {formatDate(indicator.last_seen)}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setEditing(v=>!v)} className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">{editing?"Close editor":"Edit metadata"}</button><button type="button" onClick={()=>void handleScore()} disabled={busy!==""} className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy==="score"?"Scoring...":"Recalculate score"}</button><button type="button" onClick={()=>void handleEnrich()} disabled={busy!==""} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 disabled:opacity-50">{busy==="enrich"?"Enriching...":"Enrich"}</button><button type="button" onClick={()=>void handleDelete()} disabled={busy!==""} className="rounded-lg border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-300 disabled:opacity-50">Delete</button></div></div></div>
+    {(error||notice)&&<div className={`mb-4 rounded-xl border p-4 text-xs ${error?"border-rose-500/20 bg-rose-500/5 text-rose-300":"border-emerald-500/20 bg-emerald-500/5 text-emerald-300"}`}>{error||notice}</div>}
+    <div className="grid gap-4 xl:grid-cols-[.55fr_1.45fr]"><Panel><PanelHeader title="Severity posture" subtitle="Transparent 0–100 score"/><div className="flex justify-center p-7"><ScoreRing score={indicator.severity_score}/></div><div className="grid grid-cols-2 gap-3 px-5 pb-5"><MetricCard label="Confidence" value={indicator.confidence}/><MetricCard label="TTL" value={indicator.ttl_days?`${indicator.ttl_days}d`:"Off"}/></div></Panel><Panel><PanelHeader title="Metadata" subtitle="TLP, status, tags and ATT&amp;CK context"/><div className="grid gap-4 p-5 sm:grid-cols-2"><div><div className="text-[10px] uppercase tracking-wider text-slate-600">TLP</div><div className="mt-2 text-sm uppercase text-slate-300">{indicator.tlp}</div></div><div><div className="text-[10px] uppercase tracking-wider text-slate-600">Status</div><div className="mt-2 text-sm text-slate-300">{indicator.status}</div></div><div className="sm:col-span-2"><div className="text-[10px] uppercase tracking-wider text-slate-600">Tags</div><div className="mt-2 flex flex-wrap gap-2">{indicator.tags.length?indicator.tags.map(tag=><span key={tag} className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] text-slate-400">{tag}</span>):<span className="text-xs text-slate-600">No tags</span>}</div></div><div className="sm:col-span-2"><div className="text-[10px] uppercase tracking-wider text-slate-600">ATT&amp;CK techniques</div><div className="mt-2 flex flex-wrap gap-2">{indicator.attack_techniques.length?indicator.attack_techniques.map(tag=><span key={tag} className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-2.5 py-1 font-mono text-[10px] text-cyan-200">{tag}</span>):<span className="text-xs text-slate-600">No mappings</span>}</div></div><div className="sm:col-span-2"><div className="text-[10px] uppercase tracking-wider text-slate-600">Analyst notes</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-400">{indicator.notes||"No analyst notes."}</p></div></div></Panel></div>
+    {editing&&<Panel className="mt-4"><PanelHeader title="Edit IOC metadata" subtitle="Changes are validated server-side and audited."/><div className="grid gap-4 p-5 md:grid-cols-2"><label className="text-xs text-slate-500">Confidence<input type="number" min={0} max={100} value={confidence} onChange={e=>setConfidence(Number(e.target.value))} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"/></label><label className="text-xs text-slate-500">TTL days<input type="number" min={1} max={3650} value={ttlDays} onChange={e=>setTtlDays(Number(e.target.value))} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"/></label><label className="text-xs text-slate-500">TLP<select value={tlp} onChange={e=>setTlp(e.target.value as TLP)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"><option value="clear">clear</option><option value="green">green</option><option value="amber">amber</option><option value="red">red</option></select></label><label className="text-xs text-slate-500">Status<select value={status} onChange={e=>setStatus(e.target.value as IndicatorStatus)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"><option value="active">active</option><option value="under_review">under_review</option><option value="whitelisted">whitelisted</option><option value="expired">expired</option></select></label><label className="text-xs text-slate-500 md:col-span-2">Tags<input value={tags} onChange={e=>setTags(e.target.value)} placeholder="malware, c2, phishing" className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"/></label><label className="text-xs text-slate-500 md:col-span-2">ATT&amp;CK technique IDs<input value={attack} onChange={e=>setAttack(e.target.value)} placeholder="T1059, T1566.001" className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-sm text-white"/></label><label className="text-xs text-slate-500 md:col-span-2">Analyst notes<textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"/></label><div className="md:col-span-2"><button type="button" disabled={busy!==""} onClick={()=>void handleSave()} className="rounded-lg bg-cyan-300 px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-50">{busy==="save"?"Saving...":"Save metadata"}</button></div></div></Panel>}
+    <div className="mt-4 grid gap-4 xl:grid-cols-2"><Panel><PanelHeader title="Source provenance" subtitle={`${sources.length} source record${sources.length===1?"":"s"}`}/><div className="divide-y divide-slate-800/80">{sources.length?sources.map(source=><div key={source.id} className="flex items-center gap-3 px-5 py-4"><div className="min-w-0 flex-1"><div className="text-sm font-medium text-slate-200">{source.source}</div><div className="mt-1 text-[10px] text-slate-600">Last seen {formatDate(source.last_seen)}</div></div><span className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-2.5 py-1 text-[10px] text-cyan-200">{source.confidence}%</span></div>):<div className="p-6 text-xs text-slate-500">No provenance records yet.</div>}</div></Panel><Panel><PanelHeader title="Relationships" subtitle="Linked infrastructure for pivoting"/><div className="divide-y divide-slate-800/80">{relationships.length?relationships.map(rel=><div key={rel.id} className="flex items-center gap-3 px-5 py-4"><div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wider text-cyan-300">{rel.relationship_type}</div><div className="mt-1 break-all text-xs text-slate-300">{rel.source_indicator_id===indicator.id?rel.target_value:rel.source_value}</div></div><LinkButton href={`/indicators/${rel.source_indicator_id===indicator.id?rel.target_indicator_id:rel.source_indicator_id}`}>Pivot</LinkButton></div>):<div className="p-6 text-xs text-slate-500">No relationships recorded. Use Threat Hunting to create pivots.</div>}</div></Panel></div>
+    <Panel className="mt-4"><PanelHeader title="Enrichment history" subtitle={`${enrichments.length} stored result${enrichments.length===1?"":"s"}`}/><div className="divide-y divide-slate-800/80">{enrichments.length?Object.entries(grouped).map(([source,rows])=><div key={source} className="p-5"><div className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{source}</div><div className="space-y-3">{rows.slice(0,5).map(row=><pre key={row.id} className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-xs leading-5 text-slate-400">{JSON.stringify(row.data,null,2)}</pre>)}</div></div>):<div className="p-8 text-center text-sm text-slate-500">No enrichment results yet.</div>}</div></Panel>
+  </div>;
 }
