@@ -15,6 +15,12 @@ from backend.app.models.incident_timeline import IncidentTimeline
 from backend.app.models.indicator import Indicator
 from backend.app.models.investigation import Investigation
 from backend.app.models.security_event import SecurityEvent
+from backend.app.models.user import User
+from backend.app.models.audit_log import AuditLog
+from backend.app.models.feed_config import FeedConfig
+from backend.app.models.saved_hunt import SavedHunt
+from backend.app.models.indicator_source import IndicatorSource
+from backend.app.models.relationship import IndicatorRelationship
 
 
 config = context.config

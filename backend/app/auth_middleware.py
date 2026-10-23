@@ -10,6 +10,7 @@ PUBLIC = {
     "/health/database",
     "/health/elasticsearch",
     "/api/v1/auth/login",
+    "/api/v1/auth/signup",
     "/api/v1/auth/refresh",
     "/docs",
     "/openapi.json",

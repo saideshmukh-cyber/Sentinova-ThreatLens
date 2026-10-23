@@ -14,6 +14,7 @@ from backend.app.api.exports import router as exports_router
 from backend.app.api.feeds import router as feeds_router
 from backend.app.api.indicator_sources import router as indicator_sources_router
 from backend.app.api.indicators import router as indicators_router
+from backend.app.api.integrations import router as integrations_router
 from backend.app.api.investigations import router as investigations_router
 from backend.app.api.relationships import router as relationships_router
 from backend.app.api.reports import router as reports_router
@@ -36,7 +37,8 @@ from backend.app.services.elasticsearch_service import (
 )
 from backend.app.services.maintenance_service import expire_stale_indicators
 from backend.app.services.scheduler_service import run_due_feeds
-
+from backend.app.services.realtime_bus import listen_for_events
+from backend.app.api.audit import router as audit_router
 
 async def _maintenance_loop() -> None:
     while True:
@@ -56,6 +58,8 @@ async def _maintenance_loop() -> None:
 async def lifespan(app: FastAPI):
     db = SessionLocal()
     task = None
+    realtime_stop = asyncio.Event()
+    realtime_task = None
     try:
         try:
             bootstrap_admin(db)
@@ -76,15 +80,18 @@ async def lifespan(app: FastAPI):
             db.rollback()
         if settings.maintenance_enabled:
             task = asyncio.create_task(_maintenance_loop())
+        realtime_task = asyncio.create_task(listen_for_events(realtime_stop))
     finally:
         db.close()
     yield
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    realtime_stop.set()
+    for running_task in (task, realtime_task):
+        if running_task:
+            running_task.cancel()
+            try:
+                await running_task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(
@@ -106,6 +113,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(indicators_router)
+app.include_router(integrations_router)
 app.include_router(relationships_router)
 app.include_router(enrichments_router)
 app.include_router(investigations_router)
@@ -121,6 +129,7 @@ app.include_router(search_router)
 app.include_router(exports_router)
 app.include_router(reports_router)
 app.include_router(saved_hunts_router)
+app.include_router(audit_router)
 
 
 @app.get("/")

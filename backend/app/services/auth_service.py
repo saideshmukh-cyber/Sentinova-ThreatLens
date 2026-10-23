@@ -4,26 +4,35 @@ import hmac
 import json
 import secrets
 import time
+from datetime import datetime, timedelta
 
+try:
+    import bcrypt
+except ImportError:  # local fallback; requirements installs bcrypt for normal builds
+    bcrypt = None
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from backend.app.config import settings
 from backend.app.models.user import User
 
+MAX_FAILED_LOGINS = 5
+LOCKOUT_MINUTES = 15
+
 
 def hash_password(password: str) -> str:
+    if bcrypt is not None:
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
     salt = secrets.token_bytes(16)
     derived = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210_000)
-    return (
-        "pbkdf2_sha256$210000$"
-        f"{base64.urlsafe_b64encode(salt).decode()}$"
-        f"{base64.urlsafe_b64encode(derived).decode()}"
-    )
+    return "pbkdf2_sha256$210000$" + base64.urlsafe_b64encode(salt).decode() + "$" + base64.urlsafe_b64encode(derived).decode()
 
 
 def verify_password(password: str, stored: str) -> bool:
     try:
+        if stored.startswith("$2"):
+            return bcrypt is not None and bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
+        # Backward compatibility for accounts created by the previous implementation.
         _, rounds, salt_b64, digest_b64 = stored.split("$", 3)
         salt = base64.urlsafe_b64decode(salt_b64.encode())
         expected = base64.urlsafe_b64decode(digest_b64.encode())
@@ -43,17 +52,12 @@ def _unb64(value: str) -> bytes:
 
 def _create_token(user: User, ttl_minutes: int, token_type: str) -> str:
     header = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
-    payload = _b64(
-        json.dumps(
-            {
-                "sub": user.username,
-                "role": user.role,
-                "typ": token_type,
-                "exp": int(time.time()) + ttl_minutes * 60,
-            },
-            separators=(",", ":"),
-        ).encode()
-    )
+    payload = _b64(json.dumps({
+        "sub": user.username,
+        "role": user.role,
+        "typ": token_type,
+        "exp": int(time.time()) + ttl_minutes * 60,
+    }, separators=(",", ":")).encode())
     unsigned = f"{header}.{payload}".encode()
     signature = _b64(hmac.new(settings.jwt_secret.encode(), unsigned, hashlib.sha256).digest())
     return f"{header}.{payload}.{signature}"
@@ -77,7 +81,7 @@ def decode_token(token: str, expected_type: str | None = None):
         data = json.loads(_unb64(payload))
         if int(data.get("exp", 0)) < int(time.time()):
             return None
-        if expected_type and data.get("typ", "access") != expected_type:
+        if expected_type and data.get("typ") != expected_type:
             return None
         return data
     except Exception:
@@ -86,8 +90,24 @@ def decode_token(token: str, expected_type: str | None = None):
 
 def authenticate(db: Session, username: str, password: str):
     user = db.query(User).filter(User.username == username.strip()).first()
-    if user is None or not verify_password(password, user.password_hash):
+    now = datetime.utcnow()
+    if user is None:
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    if user.locked_until and user.locked_until > now:
+        raise HTTPException(status_code=423, detail="Account temporarily locked. Try again later.")
+
+    if not verify_password(password, user.password_hash):
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= MAX_FAILED_LOGINS:
+            user.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+            user.failed_login_attempts = 0
+        db.commit()
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login_at = now
+    db.commit()
     return user
 
 

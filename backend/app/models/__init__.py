@@ -1,7 +1,7 @@
-from backend.app.models.enrichment import IndicatorEnrichment
-from backend.app.models.alert import Alert
-from backend.app.models.security_event import SecurityEvent
-from backend.app.models.alert_rule import AlertRule
-from backend.app.models.incident import (Incident,IncidentSeverity,IncidentStatus)
-from backend.app.models.incident_timeline import (IncidentTimeline)
-from backend.app.models.indicator_source import IndicatorSource
+"""
+ThreatLens SQLAlchemy models.
+
+Individual model modules are imported explicitly where required.
+Keeping this package initializer empty prevents circular imports
+between model modules and the database Base definition.
+"""

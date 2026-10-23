@@ -1,5 +1,6 @@
 export type AlertWebSocketMessage = {
   event?: string;
+  channel?: string;
   data?: {
     alert?: Record<string, unknown>;
     indicator?: Record<string, unknown>;
@@ -9,15 +10,16 @@ export type AlertWebSocketMessage = {
   [key: string]: unknown;
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const WS_URL = API_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+
 export function connectAlertWebSocket(
   onMessage: (message: AlertWebSocketMessage) => void,
   onStatusChange?: (connected: boolean) => void,
 ) {
-  const token = typeof window !== "undefined"
-    ? window.localStorage.getItem("threatlens_access_token")
-    : null;
+  const token = typeof window !== "undefined" ? window.localStorage.getItem("threatlens_access_token") : null;
   const query = token ? `?token=${encodeURIComponent(token)}` : "";
-  const socket = new WebSocket(`ws://127.0.0.1:8000/ws/alerts${query}`);
+  const socket = new WebSocket(`${WS_URL}/ws/alerts${query}`);
 
   socket.onopen = () => onStatusChange?.(true);
   socket.onmessage = (event) => {

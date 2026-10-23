@@ -1,13 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("ChangeMe!2026");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +47,7 @@ export default function LoginPage() {
         </div>
         {error && <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-xs text-rose-300">{error}</div>}
         <button disabled={loading} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">{loading ? "Signing in..." : "Sign in"}</button>
+        <p className="mt-5 text-center text-xs text-slate-600">New to ThreatLens? <Link href="/signup" className="text-cyan-300 hover:text-cyan-200">Create an analyst account</Link></p>
       </form>
     </div>
   );

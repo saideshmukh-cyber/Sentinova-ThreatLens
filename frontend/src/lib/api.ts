@@ -75,6 +75,20 @@ export async function scoreIndicator(indicatorId: number): Promise<{ indicator_i
 export async function getAlerts(): Promise<Alert[]> { return request(`${API_URL}/api/v1/alerts/`); }
 export async function updateAlert(id: number, data: { status?: AlertStatus; assignee?: string | null }): Promise<Alert> { return request(`${API_URL}/api/v1/alerts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 export async function attachAlertToIncident(alertId: number, incidentId: number): Promise<Alert> { return request(`${API_URL}/api/v1/alerts/${alertId}/incident/${incidentId}`, { method: "POST" }); }
+export async function escalateAlert(alertId: number): Promise<Alert> {
+  return request(`${API_URL}/api/v1/alerts/${alertId}/escalate`, { method: "POST" });
+}
+
+export async function createIncidentFromAlert(
+  alertId: number,
+  data: { title: string; description?: string; severity: IncidentSeverity },
+): Promise<Incident> {
+  return request(`${API_URL}/api/v1/alerts/${alertId}/incident`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
 
 export async function getAlertRules(): Promise<AlertRule[]> { return request(`${API_URL}/api/v1/alert-rules/`); }
 export async function createAlertRule(data: AlertRuleCreate): Promise<AlertRule> { return request(`${API_URL}/api/v1/alert-rules/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
@@ -93,6 +107,49 @@ export async function enrichIndicator(indicatorId: number, kind: IndicatorType |
   const route = kind === "domain" ? "dns" : kind === "ip" ? "ip" : kind === "hash" ? "hash" : "virustotal";
   return request(`${API_URL}/api/v1/enrichments/${indicatorId}/${route}`, { method: "POST" });
 }
+export type InvestigationHistoryItem = {
+  investigation_id: number;
+  indicator_id: number;
+  indicator_type: IndicatorType;
+  value: string;
+  score: number;
+  risk_level: string;
+  created_at: string;
+};
+
+export type InvestigationResult = {
+  investigation_id: number;
+  indicator_id: number;
+  indicator_type: IndicatorType;
+  value: string;
+  score: number;
+  risk_level: string;
+  summary: {
+    score: number;
+    risk_level: string;
+    enrichment_count: number;
+    sources: string[];
+    score_breakdown: Record<string, unknown>;
+  };
+  enrichments: Array<Record<string, unknown>>;
+};
+
+export async function getInvestigations(page = 1, size = 25): Promise<InvestigationHistoryItem[]> {
+  return request(`${API_URL}/api/v1/investigations/?page=${page}&size=${size}`);
+}
+
+export async function createInvestigation(indicator_type: IndicatorType, value: string): Promise<InvestigationResult> {
+  return request(`${API_URL}/api/v1/investigations/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ indicator_type, value }),
+  });
+}
+
+export async function getInvestigation(id: number): Promise<InvestigationResult> {
+  return request(`${API_URL}/api/v1/investigations/${id}`);
+}
+
 export async function getSecurityEvents(): Promise<SecurityEvent[]> { return request(`${API_URL}/api/v1/security-events/`); }
 export async function createSecurityEvent(data: SecurityEventCreate): Promise<SecurityEvent> { return request(`${API_URL}/api/v1/security-events/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); }
 
@@ -103,6 +160,10 @@ export async function globalSearch(query: string): Promise<{ indicators: Array<R
 export async function getIndicatorSources(indicatorId: number): Promise<Array<{ id: number; indicator_id: number; source: string; confidence: number; first_seen: string; last_seen: string }>> { return request(`${API_URL}/api/v1/indicators/${indicatorId}/sources`); }
 export async function getRelationships(indicatorId: number): Promise<Array<{ id: number; source_indicator_id: number; target_indicator_id: number; relationship_type: string; created_at: string }>> { return request(`${API_URL}/api/v1/indicators/${indicatorId}/relationships`); }
 export async function createRelationship(indicatorId: number, target_indicator_id: number, relationship_type: string) { return request(`${API_URL}/api/v1/indicators/${indicatorId}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_indicator_id, relationship_type }) }); }
+
+export async function signup(username: string, password: string): Promise<{ access_token: string; refresh_token: string; token_type: string; role: string; username: string }> {
+  return request(`${API_URL}/api/v1/auth/signup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+}
 
 export async function login(username: string, password: string): Promise<{ access_token: string; refresh_token: string; token_type: string; role: string; username: string }> {
   return request(`${API_URL}/api/v1/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });

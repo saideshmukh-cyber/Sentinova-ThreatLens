@@ -1,18 +1,20 @@
+import re
+
+
 def analyze_hash(value: str) -> dict:
-    value = value.strip().lower()
+    normalized = value.strip().lower()
+    possible_types: list[str] = []
 
-    result = {
-        "hash": value,
-        "possible_types": [],
+    if re.fullmatch(r"[0-9a-f]{32}", normalized):
+        possible_types.append("MD5")
+    elif re.fullmatch(r"[0-9a-f]{40}", normalized):
+        possible_types.append("SHA1")
+    elif re.fullmatch(r"[0-9a-f]{64}", normalized):
+        possible_types.append("SHA256")
+
+    return {
+        "status": "ok" if possible_types else "invalid",
+        "hash": normalized,
+        "possible_types": possible_types,
+        "is_valid_hash": bool(possible_types),
     }
-
-    if len(value) == 32:
-        result["possible_types"].append("MD5")
-
-    if len(value) == 40:
-        result["possible_types"].append("SHA1")
-
-    if len(value) == 64:
-        result["possible_types"].append("SHA256")
-
-    return result
