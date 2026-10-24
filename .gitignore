@@ -1,22 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-
-# Environment variables
 .env
 .env.*
 !.env.example
-
-# Node
-node_modules/
-.next/
-
-# IDE
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.dbbackend.zip
-frontend.zip
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
