@@ -107,6 +107,7 @@ export async function enrichIndicator(indicatorId: number, kind: IndicatorType |
   const route = kind === "domain" ? "dns" : kind === "ip" ? "ip" : kind === "hash" ? "hash" : "virustotal";
   return request(`${API_URL}/api/v1/enrichments/${indicatorId}/${route}`, { method: "POST" });
 }
+
 export type InvestigationHistoryItem = {
   investigation_id: number;
   indicator_id: number;
@@ -134,11 +135,19 @@ export type InvestigationResult = {
   enrichments: Array<Record<string, unknown>>;
 };
 
-export async function getInvestigations(page = 1, size = 25): Promise<InvestigationHistoryItem[]> {
-  return request(`${API_URL}/api/v1/investigations/?page=${page}&size=${size}`);
+export async function getInvestigations(
+  page = 1,
+  size = 25
+): Promise<InvestigationHistoryItem[]> {
+  return request(
+    `${API_URL}/api/v1/investigations/?page=${page}&size=${size}`
+  );
 }
 
-export async function createInvestigation(indicator_type: IndicatorType, value: string): Promise<InvestigationResult> {
+export async function createInvestigation(
+  indicator_type: IndicatorType,
+  value: string
+): Promise<InvestigationResult> {
   return request(`${API_URL}/api/v1/investigations/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -146,7 +155,9 @@ export async function createInvestigation(indicator_type: IndicatorType, value: 
   });
 }
 
-export async function getInvestigation(id: number): Promise<InvestigationResult> {
+export async function getInvestigation(
+  id: number
+): Promise<InvestigationResult> {
   return request(`${API_URL}/api/v1/investigations/${id}`);
 }
 

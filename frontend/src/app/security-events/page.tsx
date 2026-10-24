@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateTime } from "../../lib/date-time";
+
 import { useEffect, useState } from "react";
 
 import {
@@ -40,9 +42,7 @@ function getCurrentDateTimeLocal(): string {
 function formatEventTimestamp(
   timestamp: string,
 ): string {
-  return new Date(
-    timestamp,
-  ).toLocaleString();
+  return formatDateTime(timestamp);
 }
 
 

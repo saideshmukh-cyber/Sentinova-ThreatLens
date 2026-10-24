@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "../../../lib/date-time";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -172,9 +173,7 @@ export default function IncidentDetailPage() {
                       </p>
 
                       <p className="text-xs text-slate-500">
-                        {new Date(
-                          entry.created_at,
-                        ).toLocaleString()}
+                        {formatDateTime(entry.created_at)}
                       </p>
                     </div>
 

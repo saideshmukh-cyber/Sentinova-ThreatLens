@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "../../lib/date-time";
 import { useEffect, useMemo, useState } from "react";
 import {
   enrichIndicator,
@@ -51,7 +52,7 @@ function formatDate(value?: string | null) {
     return value;
   }
 
-  return date.toLocaleString();
+  return formatDateTime(value);
 }
 
 function getRecordPayload(record: EnrichmentRecord) {

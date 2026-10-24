@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateTime } from "../../../lib/date-time";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,7 +15,7 @@ type Relation = { id:number; source_indicator_id:number; target_indicator_id:num
 type Source = { id:number; indicator_id:number; source:string; confidence:number; first_seen:string; last_seen:string };
 
 function severity(score:number){return score>=90?"critical":score>=70?"high":score>=40?"medium":"low" as const}
-function formatDate(value:string){return new Date(value).toLocaleString()}
+function formatDate(value:string){return formatDateTime(value)}
 
 export default function IndicatorDetailPage({params}:PageProps){
   const router=useRouter();
