@@ -1,7 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Environment variables
 .env
 .env.*
 !.env.example
-.venv/
-.pytest_cache/
-__pycache__/
-*.py[cod]
+
+# Node
+node_modules/
+.next/
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local archives
+backend.zip
+frontend.zip
