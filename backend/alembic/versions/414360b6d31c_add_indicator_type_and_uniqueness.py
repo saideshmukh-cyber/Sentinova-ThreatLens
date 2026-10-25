@@ -24,6 +24,8 @@ def upgrade() -> None:
         "domain",
         "url",
         "hash",
+        "email",
+        "cve",
         name="indicatortype",
     )
 
@@ -67,6 +69,8 @@ def downgrade() -> None:
             "domain",
             "url",
             "hash",
+            "email",
+            "cve",
             name="indicatortype",
         ),
         type_=sa.VARCHAR(length=50),

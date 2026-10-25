@@ -7,7 +7,7 @@ import type { Indicator, IndicatorSearchResponse, IndicatorType, IndicatorStatus
 import type { SecurityEvent, SecurityEventCreate } from "@/types/security-event";
 import type { DashboardAnalytics } from "@/types/dashboard";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
 
 function authHeaders(extra?: HeadersInit): Headers {
   const headers = new Headers(extra);
