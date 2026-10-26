@@ -20,11 +20,10 @@ class URLhausProvider(BaseFeedProvider):
 
         try:
             with httpx.Client(timeout=45.0) as client:
-                response = client.post(
-                    self.url,
-                    headers={"Auth-Key": api_key},
-                    data={"limit": 1000},
-                )
+                response = client.get(
+    self.url,
+    headers={"Auth-Key": api_key},
+)
                 response.raise_for_status()
                 payload = response.json()
         except httpx.HTTPStatusError as exc:
